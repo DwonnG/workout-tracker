@@ -1,0 +1,71 @@
+(function () {
+  var WT = window.WT;
+  var _fbDb = null;
+
+  WT.getFirebaseDb = function () {
+    if (_fbDb) return _fbDb;
+    var firebaseConfig = {
+      apiKey: 'AIzaSyA06BbTw9Ut-VciQRY9kN-gs-nTWwdD5NY',
+      authDomain: 'workout-tracker-d6805.firebaseapp.com',
+      databaseURL: 'https://workout-tracker-d6805-default-rtdb.firebaseio.com',
+      projectId: 'workout-tracker-d6805',
+      storageBucket: 'workout-tracker-d6805.firebasestorage.app',
+      messagingSenderId: '1063554175055',
+      appId: '1:1063554175055:web:ab748f62bb8898422cda3a'
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    _fbDb = firebase.database();
+    return _fbDb;
+  };
+
+  WT.fbSet = function (path, val) {
+    if (!WT.el.syncDot) return;
+    WT.el.syncDot.className = 'sync-dot syncing'; WT.el.syncDot.title = 'Syncing\u2026';
+    WT.db.ref(WT.fbRoot + '/' + path).set(val).then(function () {
+      WT.el.syncDot.className = 'sync-dot'; WT.el.syncDot.title = 'Synced';
+    }).catch(function () {
+      WT.el.syncDot.className = 'sync-dot offline'; WT.el.syncDot.title = 'Sync failed';
+    });
+  };
+
+  WT.applyFirebaseData = function (data) {
+    if (data.plan) {
+      var p = {};
+      for (var d = 0; d <= 6; d++) {
+        var k = String(d);
+        p[d] = Array.isArray(data.plan[k]) ? data.plan[k].map(String) : (WT.DEFAULT_PLAN[d] || []).slice();
+      }
+      localStorage.setItem(WT.PLAN_KEY, JSON.stringify(p));
+    }
+    if (data.months) {
+      var keys = Object.keys(data.months);
+      for (var i = 0; i < keys.length; i++) {
+        localStorage.setItem(WT.STORAGE_PREFIX + keys[i], JSON.stringify(data.months[keys[i]]));
+      }
+    }
+  };
+
+  WT.pushAllToFirebase = function () {
+    var data = { plan: WT.loadPlan(), months: {} };
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf(WT.STORAGE_PREFIX) === 0) {
+        var mk = k.slice(WT.STORAGE_PREFIX.length);
+        try { data.months[mk] = JSON.parse(localStorage.getItem(k)); } catch (e) { /* skip corrupt entries */ }
+      }
+    }
+    WT.db.ref(WT.fbRoot).set(data);
+  };
+
+  WT.pullFromFirebase = function () {
+    WT.db.ref(WT.fbRoot).once('value').then(function (snap) {
+      var data = snap.val();
+      if (!data) { WT.pushAllToFirebase(); return; }
+      WT.applyFirebaseData(data);
+      WT.buildPlanFields(); WT.render();
+      WT.el.syncDot.className = 'sync-dot'; WT.el.syncDot.title = 'Synced';
+    }).catch(function () {
+      WT.el.syncDot.className = 'sync-dot offline'; WT.el.syncDot.title = 'Offline';
+    });
+  };
+})();

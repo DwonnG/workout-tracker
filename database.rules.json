@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "tracker": {
+      "$userHash": {
+        ".read": "$userHash.length === 64",
+        ".write": "$userHash.length === 64",
+        "profile": {
+          ".validate": "newData.hasChild('name')"
+        },
+        "months": {
+          "$month": {
+            ".validate": "$month.matches(/^\\d{4}-\\d{2}$/)"
+          }
+        }
+      }
+    },
+    ".read": false,
+    ".write": false
+  }
+}
