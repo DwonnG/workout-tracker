@@ -656,6 +656,19 @@ h1,h2,h3,.font-display{font-family:'Space Grotesk',-apple-system,sans-serif;lett
 }
 .settings-timer-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-glow)}
 .settings-timer-unit{font-size:.68rem;color:var(--text-muted)}
+/* Settings body metrics */
+.settings-metrics{display:flex;flex-direction:column;gap:.4rem}
+.settings-metric-row{display:flex;align-items:center;gap:.5rem}
+.settings-metric-label{flex:0 0 5rem;font:.78rem/1 'Inter',sans-serif;color:var(--text-secondary)}
+.settings-metric-input{
+  width:5rem;padding:.35rem .4rem;border-radius:6px;text-align:center;
+  border:1px solid var(--border-color);background:var(--bg-primary);
+  color:var(--text-primary);font:.82rem/1 'Inter',sans-serif;
+  -moz-appearance:textfield;appearance:textfield;
+}
+.settings-metric-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-glow)}
+.settings-metric-input::-webkit-inner-spin-button,.settings-metric-input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.settings-metric-unit{font-size:.68rem;color:var(--text-muted)}
 /* Settings actions (moved from overflow menu) */
 .settings-actions{
   margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border-color);

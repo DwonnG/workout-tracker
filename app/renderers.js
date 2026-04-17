@@ -244,29 +244,6 @@
       panel.appendChild(tracking);
     }
 
-    var metricsRow = document.createElement('div'); metricsRow.className = 'body-metrics-row';
-    var weightIn = document.createElement('input'); weightIn.type = 'number'; weightIn.className = 'metrics-input';
-    weightIn.step = '0.1'; weightIn.placeholder = 'Weight (lbs)';
-    weightIn.setAttribute('aria-label', 'Body weight');
-    if (rec.bodyWeight) weightIn.value = rec.bodyWeight;
-    var fatIn = document.createElement('input'); fatIn.type = 'number'; fatIn.className = 'metrics-input';
-    fatIn.step = '0.1'; fatIn.placeholder = 'Body fat %';
-    fatIn.setAttribute('aria-label', 'Body fat percentage');
-    if (rec.bodyFat) fatIn.value = rec.bodyFat;
-
-    function saveMetrics() {
-      var md2 = WT.loadMonth(y, m); WT.ensureRec(md2, id);
-      var wv = parseFloat(weightIn.value); var fv = parseFloat(fatIn.value);
-      if (!isNaN(wv) && wv > 0) md2.days[id].bodyWeight = wv; else delete md2.days[id].bodyWeight;
-      if (!isNaN(fv) && fv > 0) md2.days[id].bodyFat = fv; else delete md2.days[id].bodyFat;
-      WT.saveMonth(y, m, md2);
-    }
-    weightIn.addEventListener('change', saveMetrics);
-    fatIn.addEventListener('change', saveMetrics);
-
-    metricsRow.appendChild(weightIn); metricsRow.appendChild(fatIn);
-    panel.appendChild(metricsRow);
-
     WT.buildFoodLog(panel, y, m, id);
 
     var sec = document.createElement('div'); sec.className = 'day-plan-section';
