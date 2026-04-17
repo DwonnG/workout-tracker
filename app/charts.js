@@ -201,4 +201,278 @@
     });
     chartModal.addEventListener('click', function (e) { if (e.target === chartModal) chartModal.classList.remove('open'); });
   };
+
+  /* ====== Canvas chart utilities for Progress view ====== */
+
+  var DPR = window.devicePixelRatio || 1;
+
+  function sizeCanvas(canvas, w, h) {
+    canvas.width = w * DPR;
+    canvas.height = h * DPR;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    var ctx = canvas.getContext('2d');
+    ctx.scale(DPR, DPR);
+    return ctx;
+  }
+
+  function niceMax(v) {
+    if (v <= 0) return 10;
+    var mag = Math.pow(10, Math.floor(Math.log10(v)));
+    var n = v / mag;
+    if (n <= 1) return mag;
+    if (n <= 2) return 2 * mag;
+    if (n <= 5) return 5 * mag;
+    return 10 * mag;
+  }
+
+  WT.drawLineChart = function (canvas, data, opts) {
+    opts = opts || {};
+    var W = opts.width || canvas.parentElement.clientWidth || 320;
+    var H = opts.height || 160;
+    var ctx = sizeCanvas(canvas, W, H);
+    var PAD_L = 38, PAD_R = 12, PAD_T = 14, PAD_B = 24;
+    var cw = W - PAD_L - PAD_R, ch = H - PAD_T - PAD_B;
+    var color = opts.color || 'var(--accent)';
+    var goalLine = opts.goalLine;
+    var labels = opts.labels;
+
+    if (!data || data.length === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.font = '12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No data yet', W / 2, H / 2);
+      return;
+    }
+
+    var resolvedColor = (function () {
+      var el = document.createElement('span');
+      el.style.color = color;
+      document.body.appendChild(el);
+      var c = getComputedStyle(el).color;
+      document.body.removeChild(el);
+      return c;
+    })();
+
+    var maxV = 0, minV = Infinity;
+    for (var i = 0; i < data.length; i++) {
+      if (data[i] > maxV) maxV = data[i];
+      if (data[i] < minV) minV = data[i];
+    }
+    if (goalLine != null && goalLine > maxV) maxV = goalLine;
+    var range = maxV - minV || 1;
+    minV = Math.max(0, minV - range * 0.1);
+    maxV = maxV + range * 0.1;
+    range = maxV - minV;
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '9px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    for (var g = 0; g <= 4; g++) {
+      var gy = PAD_T + (g / 4) * ch;
+      ctx.beginPath(); ctx.moveTo(PAD_L, gy); ctx.lineTo(W - PAD_R, gy); ctx.stroke();
+      ctx.fillText(Math.round(maxV - (g / 4) * range), PAD_L - 4, gy + 3);
+    }
+
+    if (goalLine != null) {
+      var goalY = PAD_T + (1 - (goalLine - minV) / range) * ch;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.beginPath(); ctx.moveTo(PAD_L, goalY); ctx.lineTo(W - PAD_R, goalY); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.textAlign = 'right';
+      ctx.fillText('Goal', W - PAD_R - 46, goalY - 4);
+    }
+
+    var pts = [];
+    for (var j = 0; j < data.length; j++) {
+      pts.push({
+        x: PAD_L + (data.length === 1 ? cw / 2 : (j / (data.length - 1)) * cw),
+        y: PAD_T + (1 - (data[j] - minV) / range) * ch
+      });
+    }
+
+    var grad = ctx.createLinearGradient(0, PAD_T, 0, H - PAD_B);
+    grad.addColorStop(0, resolvedColor.replace(')', ', 0.25)').replace('rgb(', 'rgba('));
+    grad.addColorStop(1, resolvedColor.replace(')', ', 0)').replace('rgb(', 'rgba('));
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, H - PAD_B);
+    for (var f = 0; f < pts.length; f++) ctx.lineTo(pts[f].x, pts[f].y);
+    ctx.lineTo(pts[pts.length - 1].x, H - PAD_B);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (var k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
+    ctx.strokeStyle = resolvedColor;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    for (var d = 0; d < pts.length; d++) {
+      ctx.beginPath();
+      ctx.arc(pts[d].x, pts[d].y, d === pts.length - 1 ? 4 : 2, 0, Math.PI * 2);
+      ctx.fillStyle = d === pts.length - 1 ? resolvedColor : '#1a1a2e';
+      ctx.fill();
+      ctx.strokeStyle = resolvedColor;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    if (labels && labels.length) {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.font = '8px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      var step = Math.max(1, Math.floor(labels.length / 5));
+      for (var lb = 0; lb < labels.length; lb += step) {
+        var lx = PAD_L + (labels.length === 1 ? cw / 2 : (lb / (labels.length - 1)) * cw);
+        ctx.fillText(labels[lb], lx, H - 4);
+      }
+      if ((labels.length - 1) % step !== 0) {
+        var lastX = PAD_L + cw;
+        ctx.fillText(labels[labels.length - 1], lastX, H - 4);
+      }
+    }
+  };
+
+  WT.drawBarChart = function (canvas, data, opts) {
+    opts = opts || {};
+    var W = opts.width || canvas.parentElement.clientWidth || 320;
+    var H = opts.height || 140;
+    var ctx = sizeCanvas(canvas, W, H);
+    var PAD_L = 38, PAD_R = 12, PAD_T = 10, PAD_B = 24;
+    var cw = W - PAD_L - PAD_R, ch = H - PAD_T - PAD_B;
+    var color = opts.color || 'var(--accent)';
+    var labels = opts.labels;
+
+    if (!data || data.length === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.font = '12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No data yet', W / 2, H / 2);
+      return;
+    }
+
+    var resolvedColor = (function () {
+      var el = document.createElement('span');
+      el.style.color = color;
+      document.body.appendChild(el);
+      var c = getComputedStyle(el).color;
+      document.body.removeChild(el);
+      return c;
+    })();
+
+    var maxV = 0;
+    for (var i = 0; i < data.length; i++) { if (data[i] > maxV) maxV = data[i]; }
+    maxV = niceMax(maxV);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '9px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    for (var g = 0; g <= 4; g++) {
+      var gy = PAD_T + (g / 4) * ch;
+      ctx.beginPath(); ctx.moveTo(PAD_L, gy); ctx.lineTo(W - PAD_R, gy); ctx.stroke();
+      ctx.fillText(Math.round(maxV - (g / 4) * maxV), PAD_L - 4, gy + 3);
+    }
+
+    var barGap = 4;
+    var barW = (cw - barGap * (data.length - 1)) / data.length;
+    barW = Math.min(barW, 40);
+    var totalBars = barW * data.length + barGap * (data.length - 1);
+    var offsetX = PAD_L + (cw - totalBars) / 2;
+
+    for (var j = 0; j < data.length; j++) {
+      var bh = maxV > 0 ? (data[j] / maxV) * ch : 0;
+      var bx = offsetX + j * (barW + barGap);
+      var by = PAD_T + ch - bh;
+      var radius = Math.min(4, barW / 2);
+      ctx.beginPath();
+      ctx.moveTo(bx, by + radius);
+      ctx.arcTo(bx, by, bx + radius, by, radius);
+      ctx.arcTo(bx + barW, by, bx + barW, by + radius, radius);
+      ctx.lineTo(bx + barW, PAD_T + ch);
+      ctx.lineTo(bx, PAD_T + ch);
+      ctx.closePath();
+      ctx.fillStyle = resolvedColor;
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    if (labels && labels.length) {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.font = '8px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      for (var lb = 0; lb < labels.length; lb++) {
+        var lx = offsetX + lb * (barW + barGap) + barW / 2;
+        ctx.fillText(labels[lb], lx, H - 4);
+      }
+    }
+  };
+
+  WT.drawHeatmap = function (canvas, grid, opts) {
+    opts = opts || {};
+    var cols = 7, rows = grid.length ? Math.ceil(grid.length / cols) : 8;
+    var cellSize = opts.cellSize || 18;
+    var gap = opts.gap || 3;
+    var W = cols * (cellSize + gap) - gap + 20;
+    var H = rows * (cellSize + gap) - gap + 24;
+    var ctx = sizeCanvas(canvas, W, H);
+    var color = opts.color || 'var(--green)';
+
+    var resolvedColor = (function () {
+      var el = document.createElement('span');
+      el.style.color = color;
+      document.body.appendChild(el);
+      var c = getComputedStyle(el).color;
+      document.body.removeChild(el);
+      return c;
+    })();
+
+    var dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '8px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    for (var d = 0; d < 7; d++) {
+      ctx.fillText(dayLabels[d], d * (cellSize + gap) + cellSize / 2, 10);
+    }
+
+    var maxV = 0;
+    for (var i = 0; i < grid.length; i++) { if (grid[i] > maxV) maxV = grid[i]; }
+
+    for (var c2 = 0; c2 < grid.length; c2++) {
+      var row = Math.floor(c2 / cols);
+      var col = c2 % cols;
+      var x = col * (cellSize + gap);
+      var y = 16 + row * (cellSize + gap);
+      var radius = 3;
+
+      if (grid[c2] > 0 && maxV > 0) {
+        var intensity = 0.2 + 0.8 * (grid[c2] / maxV);
+        ctx.fillStyle = resolvedColor;
+        ctx.globalAlpha = intensity;
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.globalAlpha = 1;
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + cellSize, y, x + cellSize, y + cellSize, radius);
+      ctx.arcTo(x + cellSize, y + cellSize, x, y + cellSize, radius);
+      ctx.arcTo(x, y + cellSize, x, y, radius);
+      ctx.arcTo(x, y, x + cellSize, y, radius);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  };
 })();

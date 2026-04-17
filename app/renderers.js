@@ -505,85 +505,214 @@
     inner.appendChild(panel); WT.el.cal.appendChild(inner);
   };
 
-  WT.renderHistory = function () {
-    var inner = document.createElement('div'); inner.className = 'history-inner';
-    var snap = WT.loadPlan();
-    var sessions = [];
-    for (var mo = 0; mo >= -3; mo--) {
-      var dt = new Date(WT.focus.y, WT.focus.m + mo, 1);
-      var y = dt.getFullYear(), m = dt.getMonth();
-      var md = WT.loadMonth(y, m);
-      var dKeys = Object.keys(md.days || {}).sort().reverse();
-      for (var i = 0; i < dKeys.length; i++) {
-        var r = md.days[dKeys[i]];
-        if (!r) continue;
-        var hasActivity = r.lift || r.run || (r.lifts && Object.keys(r.lifts).length > 0);
-        if (!hasActivity) continue;
-        var parts = dKeys[i].split('-');
-        sessions.push({ id: dKeys[i], y: parseInt(parts[0], 10), m: parseInt(parts[1], 10) - 1, d: parseInt(parts[2], 10), rec: r });
-      }
-    }
-    sessions.sort(function (a, b) { return b.id < a.id ? -1 : b.id > a.id ? 1 : 0; });
+  WT.renderProgress = function () {
+    var wrap = document.createElement('div'); wrap.className = 'progress-wrap';
+    var deferredCharts = [];
 
-    if (!sessions.length) {
-      inner.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:2rem;font:.85rem/1.4 \'Inter\',sans-serif">No workout sessions yet. Start logging!</div>';
-      WT.el.cal.appendChild(inner);
-      return;
+    var summary = WT.progressSummary();
+    var summaryRow = document.createElement('div'); summaryRow.className = 'progress-summary';
+
+    function statCard(label, value, unit, delta) {
+      var card = document.createElement('div'); card.className = 'progress-stat';
+      var valEl = document.createElement('div'); valEl.className = 'progress-stat-val';
+      valEl.textContent = value != null ? (typeof value === 'number' ? value.toLocaleString() : value) : '--';
+      if (unit) { var u = document.createElement('span'); u.className = 'progress-stat-unit'; u.textContent = ' ' + unit; valEl.appendChild(u); }
+      card.appendChild(valEl);
+      var lbl = document.createElement('div'); lbl.className = 'progress-stat-label'; lbl.textContent = label;
+      card.appendChild(lbl);
+      if (delta != null && delta !== 0) {
+        var dEl = document.createElement('div');
+        dEl.className = 'progress-stat-delta ' + (delta > 0 ? 'up' : 'down');
+        dEl.textContent = (delta > 0 ? '\u25B2 +' : '\u25BC ') + Math.abs(delta).toLocaleString();
+        card.appendChild(dEl);
+      }
+      return card;
     }
 
-    sessions.forEach(function (sess) {
-      var card = document.createElement('div'); card.className = 'history-card';
-      var dow = new Date(sess.y, sess.m, sess.d).getDay();
-      var dtObj = WT.dayType(WT.planLines(snap, dow), dow);
+    summaryRow.appendChild(statCard('Workouts', summary.workouts, '', summary.workoutsDelta));
+    summaryRow.appendChild(statCard('Volume', summary.avgVolume > 0 ? summary.avgVolume : null, 'lbs', summary.volumeDelta));
+    var primaryMacro = WT.MACROS[(WT.trackedMacros || ['p'])[0]] || WT.MACROS.p;
+    summaryRow.appendChild(statCard('Avg ' + primaryMacro.label, summary.avgProtein > 0 ? summary.avgProtein : null, primaryMacro.unit || '', null));
+    summaryRow.appendChild(statCard('Weight', summary.bodyWeight, summary.bodyWeight ? 'lbs' : '', null));
+    wrap.appendChild(summaryRow);
 
-      var hdr = document.createElement('div'); hdr.className = 'history-card-header';
-      var dateLbl = document.createElement('span'); dateLbl.className = 'history-date';
-      dateLbl.textContent = WT.DOW_SHORT[dow] + ' ' + WT.MONTH_SHORT[sess.m] + ' ' + sess.d;
-      var badge = document.createElement('span'); badge.className = 'history-badge';
-      badge.textContent = dtObj.label; badge.style.color = dtObj.color; badge.style.background = dtObj.bg;
-      hdr.appendChild(dateLbl); hdr.appendChild(badge);
+    /* --- Lift Progress card --- */
+    var liftCard = document.createElement('div'); liftCard.className = 'progress-card';
+    var liftHdr = document.createElement('div'); liftHdr.className = 'progress-card-title'; liftHdr.textContent = 'Lift Progress';
+    liftCard.appendChild(liftHdr);
 
-      var dur = WT.workoutDuration(sess.rec);
-      if (dur != null && sess.rec.finishedAt) {
-        var durEl = document.createElement('span'); durEl.className = 'history-dur';
-        durEl.textContent = WT.formatDuration(dur);
-        hdr.appendChild(durEl);
+    var exercises = WT.loggedExercises();
+    var exNames = Object.keys(exercises).sort(function (a, b) { return exercises[b].count - exercises[a].count; });
+
+    if (exNames.length === 0) {
+      var noData = document.createElement('div'); noData.className = 'progress-empty';
+      noData.textContent = 'Log some lifts to see trends here.';
+      liftCard.appendChild(noData);
+    } else {
+      var groups = {};
+      for (var ei = 0; ei < exNames.length; ei++) {
+        var g = exercises[exNames[ei]].group || 'Other';
+        if (!groups[g]) groups[g] = [];
+        groups[g].push(exNames[ei]);
       }
-      card.appendChild(hdr);
+      var groupNames = Object.keys(groups);
+      var activeGroup = groupNames[0];
 
-      if (sess.rec.lifts) {
-        var liftKeys = Object.keys(sess.rec.lifts);
-        if (liftKeys.length) {
-          var liftList = document.createElement('div'); liftList.className = 'history-lifts';
-          for (var j = 0; j < liftKeys.length; j++) {
-            var ld = WT.migrateLift(sess.rec.lifts[liftKeys[j]]);
-            if (!ld.sets || !ld.sets.length) continue;
-            var vol = WT.liftVolume(ld);
-            var bestW = 0, bestR = 0;
-            for (var k = 0; k < ld.sets.length; k++) {
-              if (ld.sets[k].done && ld.sets[k].w > bestW) { bestW = ld.sets[k].w; bestR = ld.sets[k].r; }
-            }
-            if (bestW > 0) {
-              var row = document.createElement('div'); row.className = 'history-lift-row';
-              row.innerHTML = '<span class="history-lift-best">' + bestW + '\u00d7' + bestR + '</span>' +
-                (vol > 0 ? '<span class="history-lift-vol">' + vol.toLocaleString() + ' lbs vol</span>' : '');
-              liftList.appendChild(row);
-            }
-          }
-          card.appendChild(liftList);
+      var chipRow = document.createElement('div'); chipRow.className = 'progress-chips';
+      var chipBtns = {};
+      for (var gi = 0; gi < groupNames.length; gi++) {
+        var chip = document.createElement('button'); chip.className = 'progress-chip';
+        chip.textContent = groupNames[gi];
+        chip.dataset.group = groupNames[gi];
+        if (gi === 0) chip.classList.add('active');
+        chipRow.appendChild(chip);
+        chipBtns[groupNames[gi]] = chip;
+      }
+      liftCard.appendChild(chipRow);
+
+      var select = document.createElement('select'); select.className = 'progress-select';
+      liftCard.appendChild(select);
+
+      var liftCanvas = document.createElement('canvas'); liftCanvas.className = 'progress-canvas';
+      liftCard.appendChild(liftCanvas);
+      var liftMeta = document.createElement('div'); liftMeta.className = 'progress-lift-meta';
+      liftCard.appendChild(liftMeta);
+
+      function populateSelect(groupName) {
+        select.innerHTML = '';
+        var items = groups[groupName] || [];
+        for (var si = 0; si < items.length; si++) {
+          var opt = document.createElement('option'); opt.value = items[si]; opt.textContent = items[si];
+          select.appendChild(opt);
         }
       }
 
-      card.addEventListener('click', function () {
-        WT.focus = { y: sess.y, m: sess.m, d: sess.d }; WT.saveFocus();
-        WT.viewMode = 'day'; localStorage.setItem(WT.VIEW_KEY, WT.viewMode);
-        if (WT.syncNav) WT.syncNav();
-        WT.render();
-      });
+      function renderLiftChart(name) {
+        var trend = WT.exerciseTrend(name);
+        var weights = [], lbls = [];
+        var pr = 0, sessions = trend.length;
+        for (var t = 0; t < trend.length; t++) {
+          weights.push(trend[t].weight);
+          lbls.push(trend[t].date.slice(5));
+          if (trend[t].weight > pr) pr = trend[t].weight;
+        }
+        WT.drawLineChart(liftCanvas, weights, { labels: lbls, color: 'var(--accent)', height: 160 });
+        liftMeta.innerHTML = '';
+        if (pr > 0) {
+          liftMeta.innerHTML = '<span class="progress-pr">PR: ' + pr + ' lbs</span><span class="progress-sessions">Sessions: ' + sessions + '</span>';
+        }
+      }
 
-      inner.appendChild(card);
+      function switchGroup(groupName) {
+        activeGroup = groupName;
+        for (var k in chipBtns) chipBtns[k].classList.toggle('active', k === groupName);
+        populateSelect(groupName);
+        if (select.options.length > 0) renderLiftChart(select.value);
+      }
+
+      chipRow.addEventListener('click', function (e) {
+        var btn = e.target.closest('.progress-chip');
+        if (btn && btn.dataset.group) switchGroup(btn.dataset.group);
+      });
+      select.addEventListener('change', function () { renderLiftChart(select.value); });
+
+      populateSelect(activeGroup);
+      deferredCharts.push(function () {
+        if (select.options.length > 0) renderLiftChart(select.value);
+      });
+    }
+    wrap.appendChild(liftCard);
+
+    /* --- Body Metrics card --- */
+    var metricsData = WT.bodyMetricsTrend(3);
+    if (metricsData.length > 0) {
+      var metricsCard = document.createElement('div'); metricsCard.className = 'progress-card';
+      var metricsHdr = document.createElement('div'); metricsHdr.className = 'progress-card-title'; metricsHdr.textContent = 'Body Metrics';
+      metricsCard.appendChild(metricsHdr);
+
+      var weightData = [], fatData = [], mLabels = [];
+      var hasWeight = false, hasFat = false;
+      for (var bm = 0; bm < metricsData.length; bm++) {
+        mLabels.push(metricsData[bm].date.slice(5));
+        if (metricsData[bm].weight != null) { weightData.push(metricsData[bm].weight); hasWeight = true; }
+        else weightData.push(null);
+        if (metricsData[bm].fat != null) { fatData.push(metricsData[bm].fat); hasFat = true; }
+        else fatData.push(null);
+      }
+
+      if (hasWeight) {
+        var wLbl = document.createElement('div'); wLbl.className = 'progress-chart-label'; wLbl.textContent = 'Weight (lbs)';
+        metricsCard.appendChild(wLbl);
+        var wCanvas = document.createElement('canvas'); wCanvas.className = 'progress-canvas';
+        metricsCard.appendChild(wCanvas);
+        var cleanW = weightData.filter(function (v) { return v != null; });
+        var cleanWL = mLabels.filter(function (_, i) { return weightData[i] != null; });
+        (function (c, d, l) { deferredCharts.push(function () { WT.drawLineChart(c, d, { labels: l, color: 'var(--blue)', height: 130 }); }); })(wCanvas, cleanW, cleanWL);
+      }
+
+      if (hasFat) {
+        var fLbl = document.createElement('div'); fLbl.className = 'progress-chart-label'; fLbl.textContent = 'Body Fat (%)';
+        metricsCard.appendChild(fLbl);
+        var fCanvas = document.createElement('canvas'); fCanvas.className = 'progress-canvas';
+        metricsCard.appendChild(fCanvas);
+        var cleanF = fatData.filter(function (v) { return v != null; });
+        var cleanFL = mLabels.filter(function (_, i) { return fatData[i] != null; });
+        (function (c, d, l) { deferredCharts.push(function () { WT.drawLineChart(c, d, { labels: l, color: '#a78bfa', height: 130 }); }); })(fCanvas, cleanF, cleanFL);
+      }
+
+      wrap.appendChild(metricsCard);
+    }
+
+    /* --- Consistency card --- */
+    var grid = WT.consistencyGrid(8);
+    var consistCard = document.createElement('div'); consistCard.className = 'progress-card';
+    var consistHdr = document.createElement('div'); consistHdr.className = 'progress-card-title'; consistHdr.textContent = 'Workout Consistency';
+    consistCard.appendChild(consistHdr);
+    var heatCanvas = document.createElement('canvas'); heatCanvas.className = 'progress-heatmap';
+    consistCard.appendChild(heatCanvas);
+    deferredCharts.push(function () { WT.drawHeatmap(heatCanvas, grid, { color: 'var(--green)' }); });
+    var trained = 0; for (var ci = 0; ci < grid.length; ci++) { if (grid[ci] > 0) trained++; }
+    var consistMeta = document.createElement('div'); consistMeta.className = 'progress-card-meta';
+    consistMeta.textContent = trained + ' of ' + grid.length + ' days active';
+    consistCard.appendChild(consistMeta);
+    wrap.appendChild(consistCard);
+
+    /* --- Volume Trend card --- */
+    var volData = WT.weeklyVolume(8);
+    var volCard = document.createElement('div'); volCard.className = 'progress-card';
+    var volHdr = document.createElement('div'); volHdr.className = 'progress-card-title'; volHdr.textContent = 'Weekly Volume';
+    volCard.appendChild(volHdr);
+    var volCanvas = document.createElement('canvas'); volCanvas.className = 'progress-canvas';
+    volCard.appendChild(volCanvas);
+    deferredCharts.push(function () { WT.drawBarChart(volCanvas, volData.data, { labels: volData.labels, color: 'var(--accent)', height: 140 }); });
+    wrap.appendChild(volCard);
+
+    /* --- Nutrition Trend cards (one per tracked macro) --- */
+    var trackedMacros = WT.trackedMacros || ['p'];
+    var currentMd = WT.loadMonth(WT.focus.y, WT.focus.m);
+    for (var mi = 0; mi < trackedMacros.length; mi++) {
+      var macroKey = trackedMacros[mi];
+      var macroInfo = WT.MACROS[macroKey];
+      if (!macroInfo) continue;
+      var nutrData = WT.nutritionTrend(28, macroKey);
+      var hasNutr = false;
+      for (var ni = 0; ni < nutrData.data.length; ni++) { if (nutrData.data[ni] > 0) { hasNutr = true; break; } }
+      if (!hasNutr) continue;
+      var nutrCard = document.createElement('div'); nutrCard.className = 'progress-card';
+      var nutrHdr = document.createElement('div'); nutrHdr.className = 'progress-card-title';
+      nutrHdr.textContent = 'Daily ' + macroInfo.label;
+      nutrCard.appendChild(nutrHdr);
+      var nutrCanvas = document.createElement('canvas'); nutrCanvas.className = 'progress-canvas';
+      nutrCard.appendChild(nutrCanvas);
+      var macroGoal = WT.getGoal(currentMd, macroKey);
+      (function (c, d, o) { deferredCharts.push(function () { WT.drawLineChart(c, d, o); }); })(nutrCanvas, nutrData.data, { labels: nutrData.labels, color: macroInfo.color, height: 140, goalLine: macroGoal > 0 ? macroGoal : null });
+      wrap.appendChild(nutrCard);
+    }
+
+    WT.el.cal.appendChild(wrap);
+    requestAnimationFrame(function () {
+      for (var ci = 0; ci < deferredCharts.length; ci++) deferredCharts[ci]();
     });
-    WT.el.cal.appendChild(inner);
   };
 
   WT.render = function () {
@@ -598,7 +727,7 @@
     WT.el.cal.innerHTML = '';
     if (WT.viewMode === 'month') WT.renderMonth();
     else if (WT.viewMode === 'week') WT.renderWeek();
-    else if (WT.viewMode === 'history') WT.renderHistory();
+    else if (WT.viewMode === 'progress') WT.renderProgress();
     else WT.renderDay();
   };
 })();

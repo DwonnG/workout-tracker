@@ -48,7 +48,7 @@
       } catch (e) { /* use default */ }
       return { y: today.getFullYear(), m: today.getMonth(), d: today.getDate() };
     })();
-    WT.viewMode = (function () { var v = localStorage.getItem(WT.VIEW_KEY); return v === 'day' || v === 'week' || v === 'month' || v === 'history' ? v : 'day'; })();
+    WT.viewMode = (function () { var v = localStorage.getItem(WT.VIEW_KEY); if (v === 'history') v = 'progress'; return v === 'day' || v === 'week' || v === 'month' || v === 'progress' ? v : 'day'; })();
 
     WT.renderGoalInputs = function () {};
 
