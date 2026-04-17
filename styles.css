@@ -232,6 +232,15 @@ h1,h2,h3,.font-display{font-family:'Space Grotesk',-apple-system,sans-serif;lett
 .plan-day-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem}
 .plan-day-header label{font:600 .75rem/1 'Inter',sans-serif;text-transform:uppercase;letter-spacing:.03em;color:var(--text-secondary)}
 .plan-day-badge{font:600 .55rem/1 'Inter',sans-serif;text-transform:uppercase;letter-spacing:.03em;padding:.15rem .35rem;border-radius:5px}
+.plan-type-select{
+  font:600 .6rem/1 'Inter',sans-serif;text-transform:uppercase;letter-spacing:.03em;
+  padding:.2rem .35rem;border-radius:6px;border:1px solid var(--border-color);
+  cursor:pointer;transition:all var(--transition-fast);
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .3rem center;padding-right:1rem;
+}
+.plan-type-select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-glow)}
 /* Plan exercise list (visual editor) */
 .plan-exercise-list{display:flex;flex-direction:column;gap:2px;margin-bottom:.4rem;min-height:24px}
 .plan-exercise-item{
@@ -249,6 +258,8 @@ h1,h2,h3,.font-display{font-family:'Space Grotesk',-apple-system,sans-serif;lett
 .plan-exercise-item.li-core .plan-ex-text{color:var(--purple)}
 .plan-exercise-item.li-cardio .plan-ex-text{color:var(--green)}
 .plan-exercise-item.li-conditioning .plan-ex-text{color:#facc15}
+.plan-exercise-item.li-warmup .plan-ex-text{color:var(--text-muted)}
+.plan-exercise-item.li-cooldown .plan-ex-text{color:#a78bfa}
 .plan-ex-del{
   background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:.9rem;
   padding:0 .15rem;opacity:0;transition:opacity var(--transition-fast),color var(--transition-fast);line-height:1;
@@ -306,8 +317,66 @@ h1,h2,h3,.font-display{font-family:'Space Grotesk',-apple-system,sans-serif;lett
   display:flex;align-items:center;justify-content:center;
   transition:all var(--transition-fast);
 }
+.ep-row-actions{display:flex;gap:.3rem;flex-shrink:0;align-items:center}
 .ep-row-add:hover{background:var(--accent);color:#fff}
+.ep-row-del{
+  width:26px;height:26px;border-radius:50%;border:1px solid var(--red, #f87171);
+  background:transparent;color:var(--red, #f87171);font:700 .9rem/1 sans-serif;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all var(--transition-fast);
+}
+.ep-row-del:hover{background:var(--red, #f87171);color:#fff}
+.ep-custom{border-left:2px solid var(--accent);padding-left:.4rem}
+.ep-custom-tag{
+  display:inline-block;margin-left:.35rem;font:500 .55rem/1 'Inter',sans-serif;
+  text-transform:uppercase;letter-spacing:.04em;padding:.1rem .3rem;border-radius:4px;
+  background:rgba(249,115,22,0.15);color:var(--accent);vertical-align:middle;
+}
 .ep-empty{padding:2rem;text-align:center;color:var(--text-muted);font:.82rem 'Inter',sans-serif}
+
+/* Custom exercise creation modal */
+.custom-ex-overlay{
+  position:fixed;inset:0;z-index:8500;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  animation:saveFadeIn .2s ease-out;
+}
+.custom-ex-card{
+  width:min(320px, 88vw);padding:1.2rem;
+  background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:14px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4);animation:saveCardPop .25s ease-out;
+}
+.custom-ex-heading{font:.75rem/1 'Inter',sans-serif;color:var(--text-muted);margin-bottom:.3rem}
+.custom-ex-name{font:700 1rem/1.3 'Inter',sans-serif;color:var(--text-primary);margin-bottom:.8rem;text-transform:capitalize}
+.custom-ex-field{margin-bottom:.6rem}
+.custom-ex-field label{display:block;font:.7rem/1 'Inter',sans-serif;color:var(--text-secondary);margin-bottom:.25rem}
+.custom-ex-select{
+  width:100%;padding:.35rem .4rem;border-radius:6px;
+  border:1px solid var(--border-color);background:var(--bg-primary);
+  color:var(--text-primary);font:.78rem/1 'Inter',sans-serif;
+}
+.custom-ex-muscles{display:flex;flex-wrap:wrap;gap:.25rem}
+.custom-ex-muscle-chip{
+  padding:.2rem .45rem;border-radius:5px;border:1px solid var(--border-color);
+  background:transparent;color:var(--text-muted);font:.62rem/1 'Inter',sans-serif;
+  cursor:pointer;transition:all var(--transition-fast);
+}
+.custom-ex-muscle-chip.active{border-color:var(--accent);background:rgba(249,115,22,0.15);color:var(--accent)}
+.custom-ex-actions{display:flex;gap:.5rem;margin-top:.8rem}
+.custom-ex-save{
+  flex:1;padding:.5rem 0;border-radius:8px;border:none;
+  background:var(--accent);color:#fff;font:600 .78rem/1 'Inter',sans-serif;
+  cursor:pointer;transition:all var(--transition-fast);
+}
+.custom-ex-save:hover{filter:brightness(1.15)}
+.custom-ex-cancel{
+  flex:1;padding:.5rem 0;border-radius:8px;
+  border:1px solid var(--border-color);background:transparent;
+  color:var(--text-muted);font:600 .78rem/1 'Inter',sans-serif;
+  cursor:pointer;transition:all var(--transition-fast);
+}
+.custom-ex-cancel:hover{border-color:var(--text-muted);color:var(--text-secondary)}
+
 .exercise-picker-custom{
   display:flex;gap:.4rem;padding:.6rem .75rem;border-top:1px solid var(--border-color);
 }
@@ -386,6 +455,8 @@ h1,h2,h3,.font-display{font-family:'Space Grotesk',-apple-system,sans-serif;lett
 .li-core::before{background:var(--purple)}
 .li-cardio::before{background:var(--green)}
 .li-conditioning::before{background:#facc15}
+.li-warmup::before{background:var(--text-muted)}
+.li-cooldown::before{background:#a78bfa}
 .li-other::before{background:var(--text-muted);opacity:.5}
 
 @media(max-width:900px){.week-grid{grid-template-columns:1fr}}
@@ -730,7 +801,12 @@ h1,h2,h3,.font-display{font-family:'Space Grotesk',-apple-system,sans-serif;lett
 }
 .metrics-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-glow)}
 .day-plan-section{margin-top:1rem}
+.day-section-warmup,.day-section-cooldown{padding:.6rem .75rem;border-radius:10px;margin-top:.75rem}
+.day-section-warmup{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)}
+.day-section-cooldown{background:rgba(167,139,250,0.04);border:1px solid rgba(167,139,250,0.08)}
 .day-plan-title{font:600 .72rem/1 'Inter',sans-serif;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:.5rem}
+.day-plan-title-warmup{color:var(--text-secondary)}
+.day-plan-title-cooldown{color:#a78bfa}
 .day-plan.big{font-size:.92rem;line-height:1.5}
 .day-plan.big li{padding:.15rem 0;padding-left:.55em;text-indent:-.55em}
 .day-plan.big li::before{width:6px;height:6px;margin-right:.4em}

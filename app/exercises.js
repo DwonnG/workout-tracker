@@ -59,10 +59,19 @@
     { name: 'Cable Crunch', muscles: ['core'], category: 'core' },
     { name: 'Farmer Walk', muscles: ['forearms', 'core', 'shoulders'], category: 'lift' },
     { name: 'Battle Ropes', muscles: ['full body'], category: 'conditioning' },
-    { name: 'Jump Rope', muscles: ['calves', 'cardio'], category: 'conditioning' },
     { name: 'Punching Bag', muscles: ['full body'], category: 'conditioning' },
 
-    { name: 'Treadmill Run', muscles: ['cardio', 'quads', 'calves'], category: 'cardio' },
+    { name: 'Treadmill Run', muscles: ['cardio', 'quads', 'calves'], category: 'run' },
+    { name: 'Outdoor Run', muscles: ['cardio', 'quads', 'calves'], category: 'run' },
+    { name: '5K Run', muscles: ['cardio', 'quads', 'calves'], category: 'run' },
+    { name: 'C25K Run', muscles: ['cardio', 'quads', 'calves'], category: 'run' },
+    { name: 'Easy Run', muscles: ['cardio', 'quads', 'calves'], category: 'run' },
+    { name: 'Tempo Run', muscles: ['cardio', 'quads', 'hamstrings'], category: 'run' },
+    { name: 'Long Run', muscles: ['cardio', 'quads', 'glutes'], category: 'run' },
+    { name: 'Interval Run', muscles: ['cardio', 'quads', 'hamstrings'], category: 'run' },
+    { name: 'Sprint Intervals', muscles: ['cardio', 'quads', 'hamstrings'], category: 'run' },
+    { name: 'Hill Sprints', muscles: ['cardio', 'glutes', 'quads'], category: 'run' },
+
     { name: 'Treadmill Walk (Incline)', muscles: ['cardio', 'glutes', 'calves'], category: 'cardio' },
     { name: 'Stationary Bike', muscles: ['cardio', 'quads'], category: 'cardio' },
     { name: 'Assault Bike', muscles: ['cardio', 'full body'], category: 'cardio' },
@@ -70,9 +79,6 @@
     { name: 'Stair Climber', muscles: ['cardio', 'glutes', 'quads'], category: 'cardio' },
     { name: 'Elliptical', muscles: ['cardio', 'full body'], category: 'cardio' },
     { name: 'Swimming', muscles: ['cardio', 'full body'], category: 'cardio' },
-    { name: 'Outdoor Run', muscles: ['cardio', 'quads', 'calves'], category: 'cardio' },
-    { name: 'Sprint Intervals', muscles: ['cardio', 'quads', 'hamstrings'], category: 'cardio' },
-    { name: 'Hill Sprints', muscles: ['cardio', 'glutes', 'quads'], category: 'cardio' },
     { name: 'Sled Push', muscles: ['cardio', 'quads', 'glutes', 'core'], category: 'cardio' },
     { name: 'Sled Pull', muscles: ['cardio', 'back', 'hamstrings'], category: 'cardio' },
     { name: 'Box Jumps', muscles: ['cardio', 'quads', 'glutes'], category: 'cardio' },
@@ -88,13 +94,61 @@
     { name: 'Ski Erg', muscles: ['cardio', 'back', 'core'], category: 'cardio' },
     { name: 'AMRAP Circuit', muscles: ['cardio', 'full body'], category: 'cardio' },
     { name: 'EMOM Circuit', muscles: ['cardio', 'full body'], category: 'cardio' },
-    { name: 'Tabata Intervals', muscles: ['cardio', 'full body'], category: 'cardio' }
+    { name: 'Tabata Intervals', muscles: ['cardio', 'full body'], category: 'cardio' },
+
+    { name: 'Jump Rope', muscles: ['calves', 'cardio'], category: 'conditioning' },
+    { name: 'Light Jog', muscles: ['cardio', 'quads'], category: 'cardio' },
+    { name: 'Dynamic Stretches', muscles: ['full body'], category: 'conditioning' },
+    { name: 'Arm Circles', muscles: ['shoulders'], category: 'conditioning' },
+    { name: 'Leg Swings', muscles: ['hamstrings', 'glutes'], category: 'conditioning' },
+    { name: 'Band Pull-Aparts', muscles: ['shoulders', 'back'], category: 'conditioning' },
+    { name: 'Butt Kicks', muscles: ['hamstrings', 'cardio'], category: 'conditioning' },
+    { name: 'Foam Roll', muscles: ['full body'], category: 'conditioning' },
+    { name: 'Static Stretches', muscles: ['full body'], category: 'conditioning' },
+    { name: 'Light Walk', muscles: ['cardio'], category: 'cardio' },
+    { name: 'Yoga Flow', muscles: ['full body', 'core'], category: 'conditioning' },
+    { name: 'Hip Flexor Stretch', muscles: ['glutes', 'hamstrings'], category: 'conditioning' },
+    { name: 'Hamstring Stretch', muscles: ['hamstrings'], category: 'conditioning' },
+    { name: 'Shoulder Stretch', muscles: ['shoulders'], category: 'conditioning' },
+    { name: 'Child\'s Pose', muscles: ['back', 'shoulders'], category: 'conditioning' }
   ];
+
+  var CUSTOM_EX_KEY = 'wt:customExercises';
+
+  WT.loadCustomExercises = function () {
+    try { return JSON.parse(localStorage.getItem(CUSTOM_EX_KEY)) || []; }
+    catch (e) { return []; }
+  };
+
+  WT.saveCustomExercises = function (list) {
+    localStorage.setItem(CUSTOM_EX_KEY, JSON.stringify(list));
+    searchIndex = null;
+    if (WT.db && WT.fbRoot) WT.fbSet('customExercises', list);
+  };
+
+  WT.addCustomExercise = function (ex) {
+    var list = WT.loadCustomExercises();
+    var dup = list.some(function (e) { return e.name.toLowerCase() === ex.name.toLowerCase(); });
+    if (dup) return false;
+    list.push(ex);
+    WT.saveCustomExercises(list);
+    return true;
+  };
+
+  WT.removeCustomExercise = function (name) {
+    var list = WT.loadCustomExercises();
+    var filtered = list.filter(function (e) { return e.name.toLowerCase() !== name.toLowerCase(); });
+    WT.saveCustomExercises(filtered);
+  };
+
+  WT.allExercises = function () {
+    return WT.EXERCISE_DB.concat(WT.loadCustomExercises());
+  };
 
   var searchIndex = null;
   function buildIndex() {
-    if (searchIndex) return;
-    searchIndex = WT.EXERCISE_DB.map(function (ex) {
+    var all = WT.allExercises();
+    searchIndex = all.map(function (ex) {
       return {
         ex: ex,
         tokens: (ex.name + ' ' + ex.muscles.join(' ')).toLowerCase().split(/\s+/)
@@ -104,7 +158,8 @@
 
   WT.searchExercises = function (query, limit) {
     buildIndex();
-    if (!query || !query.trim()) return WT.EXERCISE_DB.slice(0, limit || 10);
+    var all = WT.allExercises();
+    if (!query || !query.trim()) return all.slice(0, limit || 10);
     var terms = query.toLowerCase().split(/\s+/).filter(Boolean);
     var scored = [];
     for (var i = 0; i < searchIndex.length; i++) {
@@ -126,15 +181,19 @@
   WT.exercisePrefix = function (ex) {
     if (ex.category === 'core') return 'Core: ';
     if (ex.category === 'conditioning') return 'Conditioning: ';
+    if (ex.category === 'run') return 'Run: ';
     if (ex.category === 'cardio') return 'Cardio: ';
     return 'Lift: ';
   };
 
+  var TIME_CATEGORIES = { cardio: true, run: true };
+
   WT.formatExerciseLine = function (ex, scheme) {
+    var isTime = TIME_CATEGORIES[ex.category];
     var defaultScheme = scheme;
-    if (!defaultScheme && ex.category === 'cardio') defaultScheme = '20min';
+    if (!defaultScheme && isTime) defaultScheme = '20min';
     else if (!defaultScheme) defaultScheme = '3\u00d710';
-    if (ex.category === 'cardio' && scheme === '3\u00d710') defaultScheme = '20min';
-    return WT.exercisePrefix(ex) + ex.name.toLowerCase() + ' ' + defaultScheme;
+    if (isTime && scheme === '3\u00d710') defaultScheme = '20min';
+    return WT.exercisePrefix(ex) + WT.titleCase(ex.name) + ' ' + defaultScheme;
   };
 })();

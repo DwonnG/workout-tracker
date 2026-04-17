@@ -132,6 +132,33 @@
     return s.length > 80 ? s.substring(0, 77) + '\u2026' : (s || 'Unknown product');
   }
 
+  function tryUsda(code, cb) {
+    var usdaUrl = 'https://api.nal.usda.gov/fdc/v1/foods/search?api_key=' + WT.USDA_KEY +
+      '&query=' + encodeURIComponent(code) + '&pageSize=1&dataType=Branded';
+    fetch(usdaUrl).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.foods || !d.foods.length) return cb(null, 'Product not found');
+      var f = d.foods[0];
+      var idMap = {};
+      WT.MACRO_ORDER.forEach(function (k) { idMap[WT.MACROS[k].nutrientId] = k; });
+      var raw = {};
+      WT.MACRO_ORDER.forEach(function (k) { raw[k] = 0; });
+      (f.foodNutrients || []).forEach(function (fn) {
+        var mk = idMap[fn.nutrientId];
+        if (mk) raw[mk] = fn.value || 0;
+      });
+      var ss = f.servingSize, su = f.servingSizeUnit || 'g';
+      var perLabel = ss ? (Math.round(ss) + su) : '100g';
+      var ratio = ss ? (ss / 100) : 1;
+      var result = { name: safeName(f.description), per: perLabel, src: 'USDA' };
+      WT.MACRO_ORDER.forEach(function (k) { result[k] = clampNum(raw[k] * ratio); });
+      cb(result, null);
+    }).catch(function () { cb(null, 'Product not found'); });
+  }
+
+  function hasNutrition(result) {
+    return WT.MACRO_ORDER.some(function (k) { return (result[k] || 0) > 0; });
+  }
+
   WT.lookupBarcode = function (code, cb) {
     if (!BARCODE_RE.test(code)) return cb(null, 'Invalid barcode format');
 
@@ -153,31 +180,14 @@
           fiber:  clampNum(n.fiber_serving || n.fiber_100g || 0),
           sodium: clampNum((n.sodium_serving || n.sodium_100g || 0) * 1000)
         };
-        return cb(result, null);
+        if (hasNutrition(result)) return cb(result, null);
       }
-
-      var usdaUrl = 'https://api.nal.usda.gov/fdc/v1/foods/search?api_key=' + WT.USDA_KEY +
-        '&query=' + encodeURIComponent(code) + '&pageSize=1&dataType=Branded';
-      return fetch(usdaUrl).then(function (r2) { return r2.json(); }).then(function (d2) {
-        if (!d2.foods || !d2.foods.length) return cb(null, 'Product not found');
-        var f = d2.foods[0];
-        var idMap = {};
-        WT.MACRO_ORDER.forEach(function (k) { idMap[WT.MACROS[k].nutrientId] = k; });
-        var raw = {};
-        WT.MACRO_ORDER.forEach(function (k) { raw[k] = 0; });
-        (f.foodNutrients || []).forEach(function (fn) {
-          var mk = idMap[fn.nutrientId];
-          if (mk) raw[mk] = fn.value || 0;
-        });
-        var ss = f.servingSize, su = f.servingSizeUnit || 'g';
-        var perLabel = ss ? (Math.round(ss) + su) : '100g';
-        var ratio = ss ? (ss / 100) : 1;
-        var result = { name: safeName(f.description), per: perLabel, src: 'USDA' };
-        WT.MACRO_ORDER.forEach(function (k) { result[k] = clampNum(raw[k] * ratio); });
-        cb(result, null);
-      });
+      tryUsda(code, cb);
     }).catch(function (err) {
-      cb(null, 'Lookup failed: ' + (err.message || 'network error'));
+      tryUsda(code, function (result, usdaErr) {
+        if (result) return cb(result, null);
+        cb(null, 'Lookup failed: ' + (err.message || 'network error'));
+      });
     });
   };
 

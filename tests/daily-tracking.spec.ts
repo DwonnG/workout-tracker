@@ -43,7 +43,7 @@ test.describe('Daily view — workout tracking', () => {
   });
 
   test('shows the workout plan for the day', async ({ page }) => {
-    await expect(page.locator('.day-plan-section')).toBeVisible();
+    await expect(page.locator('.day-plan-section').first()).toBeVisible();
   });
 
   test('displays the day type badge', async ({ page }) => {

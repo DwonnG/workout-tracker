@@ -207,7 +207,6 @@
       var macros = {};
       WT.MACRO_ORDER.forEach(function (k) { macros[k] = food[k] || 0; });
       if (WT.activeFoodLog) WT.activeFoodLog.add(food.name, macros);
-      showSavePrompt(food.name, macros);
 
       setTimeout(function () {
         scannerWrap.style.display = 'none';

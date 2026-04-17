@@ -2,13 +2,13 @@
   var WT = window.WT;
 
   WT.DEFAULT_PLAN = {
-    1: ['Run: C25K warm-up', 'Lift: bench press 4\u00d78', 'Lift: incline DB press 3\u00d710', 'Lift: shoulder press 3\u00d710', 'Lift: EZ-bar skull crushers 3\u00d712', 'Lift: lateral raise 3\u00d715', 'Finisher: battle ropes 6 rounds'],
-    2: ['Warm-up: jump rope 2 min', 'Lift: band-assisted pull-ups 4\u00d78', 'Lift: barbell row 4\u00d78', 'Lift: landmine row 3\u00d710', 'Lift: face pulls 3\u00d715', 'Lift: EZ-bar curls 3\u00d712', 'Lift: hammer curls 3\u00d712'],
-    3: ['Warm-up: bike 3 min', 'Lift: barbell squats 4\u00d76', 'Lift: barbell RDL 3\u00d78', 'Lift: rear-foot-elevated split squat 3\u00d78/leg', 'Lift: calf raises on step 3\u00d715', 'Core: ab wheel 3\u00d710', 'Core: plank 3\u00d745 sec'],
-    4: ['Run: C25K warm-up', 'Lift: landmine press 3\u00d710', 'Lift: DB press 3\u00d710', 'Lift: dip (bench) 3\u00d7submax', 'Lift: DB lateral raise 3\u00d715', 'Lift: EZ-bar skull crushers 3\u00d712', 'Band pull-aparts 3\u00d720'],
-    5: ['Warm-up: jump rope 2 min', 'Lift: pull-ups 4\u00d7submax', 'Lift: barbell row 4\u00d78', 'Lift: DB row 3\u00d710', 'Lift: EZ-bar curls 3\u00d712', 'Lift: face pulls 3\u00d715', 'Finisher: jump rope 5 rounds'],
-    6: ['Lift: goblet squats 3\u00d712', 'Lift: step-ups 3\u00d710/leg', 'Lift: kettlebell swings 3\u00d715', 'Core: ab wheel 3\u00d710', 'Core: Russian twists 3\u00d720', 'Conditioning: battle ropes 5 rounds', 'Conditioning: punching bag 3\u00d73 min'],
-    0: ['Recovery: stretch / foam roll / easy walk']
+    1: ['Warm Up: Jump Rope 2min', 'Lift: Bench Press 4\u00d78', 'Lift: Incline DB Press 3\u00d710', 'Lift: Shoulder Press 3\u00d710', 'Lift: EZ-Bar Skull Crusher 3\u00d712', 'Lift: Lateral Raise 3\u00d715', 'Cool Down: Foam Roll 5min'],
+    2: ['Warm Up: Dynamic Stretches 5min', 'Lift: Band-Assisted Pull-Up 4\u00d78', 'Lift: Barbell Row 4\u00d78', 'Lift: Landmine Row 3\u00d710', 'Lift: Face Pull 3\u00d715', 'Lift: EZ-Bar Curl 3\u00d712', 'Lift: Hammer Curl 3\u00d712', 'Cool Down: Static Stretches 5min'],
+    3: ['Warm Up: Stationary Bike 3min', 'Lift: Barbell Squat 4\u00d76', 'Lift: Barbell RDL 3\u00d78', 'Lift: Rear-Foot-Elevated Split Squat 3\u00d78/leg', 'Lift: Calf Raise 3\u00d715', 'Core: Ab Wheel 3\u00d710', 'Core: Plank 3\u00d745sec', 'Cool Down: Hamstring Stretch 5min'],
+    4: ['Warm Up: Light Jog 3min', 'Lift: Landmine Press 3\u00d710', 'Lift: DB Press 3\u00d710', 'Lift: Dip 3\u00d7submax', 'Lift: Lateral Raise 3\u00d715', 'Lift: EZ-Bar Skull Crusher 3\u00d712', 'Cool Down: Foam Roll 5min'],
+    5: ['Warm Up: Jump Rope 2min', 'Lift: Pull-Up 4\u00d7submax', 'Lift: Barbell Row 4\u00d78', 'Lift: DB Row 3\u00d710', 'Lift: EZ-Bar Curl 3\u00d712', 'Lift: Face Pull 3\u00d715', 'Cool Down: Yoga Flow 5min'],
+    6: ['Warm Up: Dynamic Stretches 5min', 'Lift: Goblet Squat 3\u00d712', 'Lift: Step-Up 3\u00d710/leg', 'Lift: Kettlebell Swing 3\u00d715', 'Core: Ab Wheel 3\u00d710', 'Core: Russian Twist 3\u00d720', 'Cool Down: Static Stretches 5min'],
+    0: ['Cool Down: Light Walk 20min']
   };
 
   WT.cloneDefault = function () {
@@ -21,11 +21,18 @@
     try {
       var r = localStorage.getItem(WT.PLAN_KEY);
       if (!r) return WT.cloneDefault();
-      var o = JSON.parse(r), m = WT.cloneDefault();
+      var o = JSON.parse(r), m = WT.cloneDefault(), changed = false;
       for (var d = 0; d <= 6; d++) {
         var k = String(d);
-        if (Array.isArray(o[k]) && o[k].length) m[d] = o[k].map(String);
+        if (Array.isArray(o[k]) && o[k].length) {
+          m[d] = o[k].map(function (l) {
+            var norm = WT.normalizePlanLine(String(l));
+            if (norm !== String(l)) changed = true;
+            return norm;
+          });
+        }
       }
+      if (changed) WT.savePlan(m);
       return m;
     } catch (e) { return WT.cloneDefault(); }
   };

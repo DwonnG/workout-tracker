@@ -69,6 +69,13 @@
       var cf = WT.toArray(data.customFoods);
       localStorage.setItem('wt:customFoods', JSON.stringify(cf));
     }
+    if (data.dayLabels) {
+      localStorage.setItem(WT.DAY_LABELS_KEY, JSON.stringify(data.dayLabels));
+    }
+    if (data.customExercises) {
+      var ce = WT.toArray(data.customExercises);
+      localStorage.setItem('wt:customExercises', JSON.stringify(ce));
+    }
   };
 
   WT.pushAllToFirebase = function () {
@@ -81,6 +88,8 @@
       }
     }
     try { var cf = JSON.parse(localStorage.getItem('wt:customFoods')); if (cf) data.customFoods = cf; } catch (e) { /* skip */ }
+    try { var dl = JSON.parse(localStorage.getItem(WT.DAY_LABELS_KEY)); if (dl) data.dayLabels = dl; } catch (e) { /* skip */ }
+    try { var ce = JSON.parse(localStorage.getItem('wt:customExercises')); if (ce) data.customExercises = ce; } catch (e) { /* skip */ }
     WT.db.ref(WT.fbRoot).set(data);
   };
 

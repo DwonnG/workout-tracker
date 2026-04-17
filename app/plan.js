@@ -19,13 +19,22 @@
     pickerCallback = null;
   }
 
+  var CATEGORY_FILTERS = ['run', 'cardio', 'conditioning'];
+  var CATEGORY_LABELS = { run: 'Run', cardio: 'Cardio', conditioning: 'Conditioning' };
+
   function renderFilters() {
     pickerFilters.innerHTML = '';
-    var groups = ['all'].concat(WT.MUSCLE_GROUPS);
+    var hasCustom = WT.loadCustomExercises().length > 0;
+    var groups = ['all'];
+    groups = groups.concat(CATEGORY_FILTERS);
+    var catSet = {};
+    CATEGORY_FILTERS.forEach(function (c) { catSet[c] = true; });
+    WT.MUSCLE_GROUPS.forEach(function (g) { if (!catSet[g]) groups.push(g); });
+    if (hasCustom) groups.push('custom');
     groups.forEach(function (g) {
       var btn = document.createElement('button');
       btn.className = 'ep-filter' + (g === activeFilter ? ' active' : '');
-      btn.textContent = g === 'all' ? 'All' : g.charAt(0).toUpperCase() + g.slice(1);
+      btn.textContent = g === 'all' ? 'All' : g === 'custom' ? 'My Exercises' : (CATEGORY_LABELS[g] || g.charAt(0).toUpperCase() + g.slice(1));
       btn.addEventListener('click', function () {
         activeFilter = g;
         renderFilters();
@@ -35,16 +44,28 @@
     });
   }
 
+  function isCustomExercise(ex) {
+    var customs = WT.loadCustomExercises();
+    return customs.some(function (c) { return c.name.toLowerCase() === ex.name.toLowerCase(); });
+  }
+
   function renderPickerList(query) {
     pickerList.innerHTML = '';
     var exercises;
     if (query && query.trim().length >= 2) {
       exercises = WT.searchExercises(query, 30);
     } else {
-      exercises = WT.EXERCISE_DB.slice();
+      exercises = WT.allExercises();
     }
 
-    if (activeFilter !== 'all') {
+    if (activeFilter === 'custom') {
+      var customs = WT.loadCustomExercises();
+      var customNames = {};
+      customs.forEach(function (c) { customNames[c.name.toLowerCase()] = true; });
+      exercises = exercises.filter(function (ex) { return customNames[ex.name.toLowerCase()]; });
+    } else if (CATEGORY_FILTERS.indexOf(activeFilter) !== -1) {
+      exercises = exercises.filter(function (ex) { return ex.category === activeFilter; });
+    } else if (activeFilter !== 'all') {
       exercises = exercises.filter(function (ex) {
         return ex.muscles.indexOf(activeFilter) !== -1;
       });
@@ -53,42 +74,157 @@
     if (!exercises.length) {
       var empty = document.createElement('div');
       empty.className = 'ep-empty';
-      empty.textContent = 'No exercises found';
+      empty.textContent = activeFilter === 'custom' ? 'No custom exercises yet' : 'No exercises found';
       pickerList.appendChild(empty);
       return;
     }
 
     exercises.forEach(function (ex) {
       var row = document.createElement('div');
-      row.className = 'ep-row';
+      var custom = isCustomExercise(ex);
+      row.className = 'ep-row' + (custom ? ' ep-custom' : '');
 
       var info = document.createElement('div');
       info.className = 'ep-row-info';
       var name = document.createElement('div');
       name.className = 'ep-row-name';
       name.textContent = ex.name;
+      if (custom) {
+        var tag = document.createElement('span');
+        tag.className = 'ep-custom-tag';
+        tag.textContent = 'custom';
+        name.appendChild(tag);
+      }
       var muscles = document.createElement('div');
       muscles.className = 'ep-row-muscles';
       muscles.textContent = ex.muscles.join(' \u00b7 ');
       info.appendChild(name);
       info.appendChild(muscles);
 
+      var actions = document.createElement('div');
+      actions.className = 'ep-row-actions';
+
       var addBtn = document.createElement('button');
       addBtn.className = 'ep-row-add';
       addBtn.textContent = '+';
       addBtn.setAttribute('aria-label', 'Add ' + ex.name);
-
       addBtn.addEventListener('click', function () {
-        var scheme = ex.category === 'cardio' ? '20min' : '3\u00d710';
-        var line = WT.formatExerciseLine(ex, scheme);
+        var line = WT.formatExerciseLine(ex);
         if (pickerCallback) pickerCallback(line);
         WT.haptic('light');
       });
+      actions.appendChild(addBtn);
+
+      if (custom) {
+        var delBtn = document.createElement('button');
+        delBtn.className = 'ep-row-del';
+        delBtn.textContent = '\u00d7';
+        delBtn.setAttribute('aria-label', 'Delete ' + ex.name);
+        delBtn.addEventListener('click', function () {
+          WT.removeCustomExercise(ex.name);
+          renderFilters();
+          renderPickerList(pickerSearch.value);
+        });
+        actions.appendChild(delBtn);
+      }
 
       row.appendChild(info);
-      row.appendChild(addBtn);
+      row.appendChild(actions);
       pickerList.appendChild(row);
     });
+  }
+
+  function showCustomExerciseForm(name) {
+    var overlay = document.createElement('div');
+    overlay.className = 'custom-ex-overlay';
+
+    var card = document.createElement('div');
+    card.className = 'custom-ex-card';
+
+    var heading = document.createElement('div');
+    heading.className = 'custom-ex-heading';
+    heading.textContent = 'Save Custom Exercise';
+
+    var nameLabel = document.createElement('div');
+    nameLabel.className = 'custom-ex-name';
+    nameLabel.textContent = name;
+
+    var catRow = document.createElement('div');
+    catRow.className = 'custom-ex-field';
+    var catLabel = document.createElement('label');
+    catLabel.textContent = 'Category';
+    var catSel = document.createElement('select');
+    catSel.className = 'custom-ex-select';
+    var catLabels = { lift: 'Lift', run: 'Run', cardio: 'Cardio', core: 'Core', conditioning: 'Conditioning' };
+    ['lift', 'run', 'cardio', 'core', 'conditioning'].forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c; opt.textContent = catLabels[c] || c;
+      catSel.appendChild(opt);
+    });
+    catRow.appendChild(catLabel); catRow.appendChild(catSel);
+
+    var muscleRow = document.createElement('div');
+    muscleRow.className = 'custom-ex-field';
+    var muscleLabel = document.createElement('label');
+    muscleLabel.textContent = 'Muscle Groups';
+    var muscleWrap = document.createElement('div');
+    muscleWrap.className = 'custom-ex-muscles';
+    var selectedMuscles = {};
+    WT.MUSCLE_GROUPS.forEach(function (g) {
+      var chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'custom-ex-muscle-chip';
+      chip.textContent = g.charAt(0).toUpperCase() + g.slice(1);
+      chip.addEventListener('click', function () {
+        selectedMuscles[g] = !selectedMuscles[g];
+        chip.classList.toggle('active', !!selectedMuscles[g]);
+      });
+      muscleWrap.appendChild(chip);
+    });
+    muscleRow.appendChild(muscleLabel); muscleRow.appendChild(muscleWrap);
+
+    var actions = document.createElement('div');
+    actions.className = 'custom-ex-actions';
+
+    var saveBtn = document.createElement('button');
+    saveBtn.className = 'custom-ex-save';
+    saveBtn.textContent = 'Save & Add';
+    saveBtn.addEventListener('click', function () {
+      var muscles = WT.MUSCLE_GROUPS.filter(function (g) { return selectedMuscles[g]; });
+      if (!muscles.length) muscles = [catSel.value === 'cardio' || catSel.value === 'run' ? 'cardio' : 'full body'];
+      var ex = { name: name, muscles: muscles, category: catSel.value, custom: true };
+      WT.addCustomExercise(ex);
+      var line = WT.formatExerciseLine(ex);
+      if (pickerCallback) pickerCallback(line);
+      pickerCustom.value = '';
+      overlay.remove();
+      renderFilters();
+      renderPickerList(pickerSearch.value);
+    });
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'custom-ex-cancel';
+    cancelBtn.textContent = 'Just Add Once';
+    cancelBtn.addEventListener('click', function () {
+      var cat = catSel.value;
+      var muscles = WT.MUSCLE_GROUPS.filter(function (g) { return selectedMuscles[g]; });
+      if (!muscles.length) muscles = [cat === 'cardio' || cat === 'run' ? 'cardio' : 'full body'];
+      var ex = { name: name, muscles: muscles, category: cat };
+      var line = WT.formatExerciseLine(ex);
+      if (pickerCallback) pickerCallback(line);
+      pickerCustom.value = '';
+      overlay.remove();
+    });
+
+    actions.appendChild(saveBtn); actions.appendChild(cancelBtn);
+    card.appendChild(heading);
+    card.appendChild(nameLabel);
+    card.appendChild(catRow);
+    card.appendChild(muscleRow);
+    card.appendChild(actions);
+    overlay.appendChild(card);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
   }
 
   WT.initExercisePicker = function () {
@@ -110,8 +246,7 @@
     pickerCustomAdd.addEventListener('click', function () {
       var line = pickerCustom.value.trim();
       if (!line) return;
-      if (pickerCallback) pickerCallback(line);
-      pickerCustom.value = '';
+      showCustomExerciseForm(line);
     });
 
     pickerCustom.addEventListener('keydown', function (e) {
@@ -129,14 +264,30 @@
   WT.buildPlanFields = function () {
     var w = document.getElementById('planFields'); if (!w) return; w.innerHTML = '';
     var p = WT.loadPlan();
+    var labels = WT.loadDayLabels();
     WT.DOW_ORDER.forEach(function (dow) {
       var card = document.createElement('div'); card.className = 'plan-day';
       var header = document.createElement('div'); header.className = 'plan-day-header';
       var lab = document.createElement('label'); lab.textContent = WT.DOW_LABEL[dow];
-      var dt = WT.DAY_LABELS[dow] || { label: '', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.05)' };
-      var badge = document.createElement('span'); badge.className = 'plan-day-badge';
-      badge.textContent = dt.label; badge.style.color = dt.color; badge.style.background = dt.bg;
-      header.appendChild(lab); header.appendChild(badge); card.appendChild(header);
+
+      var sel = document.createElement('select');
+      sel.className = 'plan-type-select';
+      sel.dataset.dow = String(dow);
+      var current = labels[dow] || 'Rest';
+      WT.WORKOUT_TYPE_NAMES.forEach(function (name) {
+        var opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        if (name === current) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      var style = WT.WORKOUT_TYPES[current] || WT.WORKOUT_TYPES['Rest'];
+      sel.style.color = style.color; sel.style.background = style.bg;
+      sel.addEventListener('change', function () {
+        var s = WT.WORKOUT_TYPES[sel.value] || WT.WORKOUT_TYPES['Rest'];
+        sel.style.color = s.color; sel.style.background = s.bg;
+      });
+
+      header.appendChild(lab); header.appendChild(sel); card.appendChild(header);
 
       var exerciseList = document.createElement('div');
       exerciseList.className = 'plan-exercise-list';
@@ -157,7 +308,7 @@
 
           var text = document.createElement('span');
           text.className = 'plan-ex-text';
-          text.textContent = line;
+          text.textContent = WT.titleCase(line);
 
           var delBtn = document.createElement('button');
           delBtn.className = 'plan-ex-del';
@@ -214,6 +365,7 @@
 
   WT.readPlanForm = function () {
     var o = {};
+    var labels = {};
     WT.DOW_ORDER.forEach(function (dow) {
       var list = document.querySelector('.plan-exercise-list[data-dow="' + dow + '"]');
       if (list) {
@@ -227,7 +379,10 @@
       } else {
         o[dow] = (WT.DEFAULT_PLAN[dow] || []).slice();
       }
+      var sel = document.querySelector('.plan-type-select[data-dow="' + dow + '"]');
+      labels[dow] = sel ? sel.value : (WT.DEFAULT_DAY_LABELS[dow] || 'Rest');
     });
+    WT.saveDayLabels(labels);
     return o;
   };
 
@@ -240,12 +395,12 @@
         var ssWrap = document.createElement('div'); ssWrap.className = 'superset-group compact';
         g.items.forEach(function (item) {
           var li = document.createElement('li'); li.className = WT.lineCategory(item.line);
-          li.textContent = item.line; ssWrap.appendChild(li);
+          li.textContent = WT.titleCase(item.line); ssWrap.appendChild(li);
         });
         ul.appendChild(ssWrap);
       } else {
         var li = document.createElement('li'); li.className = WT.lineCategory(g.line);
-        li.textContent = g.line; ul.appendChild(li);
+        li.textContent = WT.titleCase(g.line); ul.appendChild(li);
       }
     });
     return ul;

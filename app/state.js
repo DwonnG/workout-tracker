@@ -79,20 +79,45 @@ window.WT = {
   WT.MONTH_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   WT.MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-  WT.DAY_LABELS = {
-    1: { label: 'Push', color: 'var(--accent)', bg: 'rgba(249,115,22,0.12)' },
-    2: { label: 'Pull', color: 'var(--blue)', bg: 'rgba(56,189,248,0.12)' },
-    3: { label: 'Legs', color: '#a78bfa', bg: 'rgba(167,139,250,0.12)' },
-    4: { label: 'Push', color: 'var(--accent)', bg: 'rgba(249,115,22,0.12)' },
-    5: { label: 'Pull', color: 'var(--blue)', bg: 'rgba(56,189,248,0.12)' },
-    6: { label: 'Legs + Conditioning', color: 'var(--green)', bg: 'rgba(52,211,153,0.12)' },
-    0: { label: 'Rest', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.05)' }
+  WT.WORKOUT_TYPES = {
+    'Push':               { color: 'var(--accent)', bg: 'rgba(249,115,22,0.12)' },
+    'Pull':               { color: 'var(--blue)',   bg: 'rgba(56,189,248,0.12)' },
+    'Legs':               { color: '#a78bfa',       bg: 'rgba(167,139,250,0.12)' },
+    'Upper':              { color: 'var(--accent)', bg: 'rgba(249,115,22,0.12)' },
+    'Lower':              { color: '#a78bfa',       bg: 'rgba(167,139,250,0.12)' },
+    'Full Body':          { color: 'var(--green)',  bg: 'rgba(52,211,153,0.12)' },
+    'Chest & Triceps':    { color: 'var(--accent)', bg: 'rgba(249,115,22,0.12)' },
+    'Back & Biceps':      { color: 'var(--blue)',   bg: 'rgba(56,189,248,0.12)' },
+    'Shoulders & Arms':   { color: '#38bdf8',       bg: 'rgba(56,189,248,0.12)' },
+    'Conditioning':       { color: 'var(--green)',  bg: 'rgba(52,211,153,0.12)' },
+    'Cardio':             { color: 'var(--green)',  bg: 'rgba(52,211,153,0.12)' },
+    'Rest':               { color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.05)' }
+  };
+  WT.WORKOUT_TYPE_NAMES = Object.keys(WT.WORKOUT_TYPES);
+
+  WT.DAY_LABELS_KEY = 'wt:dayLabels';
+  WT.DEFAULT_DAY_LABELS = { 1: 'Push', 2: 'Pull', 3: 'Legs', 4: 'Push', 5: 'Pull', 6: 'Legs', 0: 'Rest' };
+
+  WT.loadDayLabels = function () {
+    try { return JSON.parse(localStorage.getItem(WT.DAY_LABELS_KEY)) || WT.DEFAULT_DAY_LABELS; }
+    catch (e) { return WT.DEFAULT_DAY_LABELS; }
+  };
+
+  WT.saveDayLabels = function (labels) {
+    localStorage.setItem(WT.DAY_LABELS_KEY, JSON.stringify(labels));
+    if (WT.db && WT.fbRoot) WT.fbSet('dayLabels', labels);
   };
 
   WT.dayType = function (lines, dow) {
-    if (WT.DAY_LABELS[dow]) return WT.DAY_LABELS[dow];
+    var labels = WT.loadDayLabels();
+    var name = labels[dow];
+    if (name && WT.WORKOUT_TYPES[name]) return { label: name, color: WT.WORKOUT_TYPES[name].color, bg: WT.WORKOUT_TYPES[name].bg };
     if (!lines || !lines.length || lines[0] === '\u2014') return { label: 'Rest', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.05)' };
     return { label: 'Workout', color: 'var(--accent)', bg: 'rgba(249,115,22,0.12)' };
+  };
+
+  WT.titleCase = function (s) {
+    return s.replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   };
 
   WT.lineCategory = function (l) {
@@ -102,8 +127,27 @@ window.WT = {
     if (stripped.indexOf('run:') === 0) return 'li-run';
     if (stripped.indexOf('core:') === 0) return 'li-core';
     if (stripped.indexOf('cardio:') === 0) return 'li-cardio';
-    if (stripped.indexOf('conditioning:') === 0) return 'li-conditioning';
+    if (stripped.indexOf('conditioning:') === 0 || stripped.indexOf('finisher:') === 0) return 'li-conditioning';
+    if (stripped.indexOf('warm up:') === 0 || stripped.indexOf('warm-up:') === 0) return 'li-warmup';
+    if (stripped.indexOf('cool down:') === 0 || stripped.indexOf('cool-down:') === 0) return 'li-cooldown';
     return 'li-other';
+  };
+
+  var PREFIX_NORMALIZE = [
+    [/^warm-up:\s*/i, 'Warm Up: '],
+    [/^warm up:\s*/i, 'Warm Up: '],
+    [/^cool-down:\s*/i, 'Cool Down: '],
+    [/^cool down:\s*/i, 'Cool Down: '],
+    [/^finisher:\s*/i, 'Conditioning: ']
+  ];
+
+  WT.normalizePlanLine = function (line) {
+    for (var i = 0; i < PREFIX_NORMALIZE.length; i++) {
+      if (PREFIX_NORMALIZE[i][0].test(line)) {
+        return line.replace(PREFIX_NORMALIZE[i][0], PREFIX_NORMALIZE[i][1]);
+      }
+    }
+    return line;
   };
 
   WT.isSupersetLine = function (l) {

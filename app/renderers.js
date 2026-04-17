@@ -246,9 +246,13 @@
 
     WT.buildFoodLog(panel, y, m, id);
 
-    var sec = document.createElement('div'); sec.className = 'day-plan-section';
-    var secTitle = document.createElement('div'); secTitle.className = 'day-plan-title'; secTitle.textContent = "Today's Plan";
-    sec.appendChild(secTitle);
+    var warmLines = [], mainLines = [], coolLines = [];
+    for (var li = 0; li < lines.length; li++) {
+      var cat = WT.lineCategory(lines[li]);
+      if (cat === 'li-warmup') warmLines.push({ line: lines[li], idx: li });
+      else if (cat === 'li-cooldown') coolLines.push({ line: lines[li], idx: li });
+      else mainLines.push({ line: lines[li], idx: li });
+    }
 
     function buildLiftBlock(container, l, idx) {
       var isLift = l.toLowerCase().replace(/^ss:\s*/i, '').indexOf('lift:') === 0;
@@ -360,8 +364,8 @@
     }
 
     function buildLineItem(container, l, idx) {
-      var displayText = WT.isSupersetLine ? WT.stripSS(l) : l;
-      var li = document.createElement('li'); li.className = WT.lineCategory(l); li.textContent = displayText;
+      var displayText = WT.isSupersetLine(l) ? WT.stripSS(l) : l;
+      var li = document.createElement('li'); li.className = WT.lineCategory(l); li.textContent = WT.titleCase(displayText);
       container.appendChild(li);
 
       var checkLift = displayText.toLowerCase().indexOf('lift:') === 0;
@@ -375,41 +379,70 @@
       buildLiftBlock(container, displayText, idx);
     }
 
-    var ul = document.createElement('ul'); ul.className = 'day-plan big';
-    var groups = WT.groupSupersets(lines);
+    function addExerciseBtn(sectionPrefix) {
+      var btn = document.createElement('button');
+      btn.className = 'plan-add-exercise-btn';
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Exercise';
+      btn.addEventListener('click', function () {
+        if (!WT.initExercisePicker) return;
+        var pickerModal = document.getElementById('exercisePickerModal');
+        if (!pickerModal) return;
+        WT.openDayPicker(function (line) {
+          var finalLine = sectionPrefix ? line.replace(/^[^:]+:\s*/, sectionPrefix) : line;
+          lines.push(finalLine);
+          var p = WT.loadPlan();
+          if (!p[dow]) p[dow] = [];
+          p[dow].push(finalLine);
+          WT.savePlan(p);
+          WT.render();
+        });
+      });
+      return btn;
+    }
+
+    function renderLineGroup(items) {
+      var ul = document.createElement('ul'); ul.className = 'day-plan big';
+      items.forEach(function (item) { buildLineItem(ul, item.line, item.idx); });
+      return ul;
+    }
+
+    var warmSec = document.createElement('div'); warmSec.className = 'day-plan-section day-section-warmup';
+    var warmTitle = document.createElement('div'); warmTitle.className = 'day-plan-title day-plan-title-warmup'; warmTitle.textContent = 'Warm Up';
+    warmSec.appendChild(warmTitle);
+    if (warmLines.length) warmSec.appendChild(renderLineGroup(warmLines));
+    warmSec.appendChild(addExerciseBtn('Warm Up: '));
+    panel.appendChild(warmSec);
+
+    var sec = document.createElement('div'); sec.className = 'day-plan-section';
+    var secTitle = document.createElement('div'); secTitle.className = 'day-plan-title'; secTitle.textContent = "Today's Plan";
+    sec.appendChild(secTitle);
+    var mainUl = document.createElement('ul'); mainUl.className = 'day-plan big';
+    var mainLinesOnly = mainLines.map(function (item) { return item.line; });
+    var groups = WT.groupSupersets(mainLinesOnly);
+    var idxMap = mainLines.map(function (item) { return item.idx; });
     groups.forEach(function (g) {
       if (g.type === 'superset') {
         var ssWrap = document.createElement('div'); ssWrap.className = 'superset-group';
         var ssLabel = document.createElement('div'); ssLabel.className = 'superset-label'; ssLabel.textContent = 'Superset';
         ssWrap.appendChild(ssLabel);
         var ssInner = document.createElement('div'); ssInner.className = 'superset-inner';
-        g.items.forEach(function (item) { buildLineItem(ssInner, item.line, item.idx); });
+        g.items.forEach(function (item) { buildLineItem(ssInner, item.line, idxMap[item.idx] != null ? idxMap[item.idx] : item.idx); });
         ssWrap.appendChild(ssInner);
-        ul.appendChild(ssWrap);
+        mainUl.appendChild(ssWrap);
       } else {
-        buildLineItem(ul, g.line, g.idx);
+        buildLineItem(mainUl, g.line, idxMap[g.idx] != null ? idxMap[g.idx] : g.idx);
       }
     });
-    sec.appendChild(ul);
-
-    var dayAddBtn = document.createElement('button');
-    dayAddBtn.className = 'plan-add-exercise-btn';
-    dayAddBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Exercise';
-    dayAddBtn.addEventListener('click', function () {
-      if (!WT.initExercisePicker) return;
-      var pickerModal = document.getElementById('exercisePickerModal');
-      if (!pickerModal) return;
-      WT.openDayPicker(function (line) {
-        lines.push(line);
-        var p = WT.loadPlan();
-        if (!p[dow]) p[dow] = [];
-        p[dow].push(line);
-        WT.savePlan(p);
-        WT.render();
-      });
-    });
-    sec.appendChild(dayAddBtn);
+    sec.appendChild(mainUl);
+    sec.appendChild(addExerciseBtn());
     panel.appendChild(sec);
+
+    var coolSec = document.createElement('div'); coolSec.className = 'day-plan-section day-section-cooldown';
+    var coolTitle = document.createElement('div'); coolTitle.className = 'day-plan-title day-plan-title-cooldown'; coolTitle.textContent = 'Cool Down';
+    coolSec.appendChild(coolTitle);
+    if (coolLines.length) coolSec.appendChild(renderLineGroup(coolLines));
+    coolSec.appendChild(addExerciseBtn('Cool Down: '));
+    panel.appendChild(coolSec);
 
     if (rec.startedAt && !rec.finishedAt) {
       var finBtn = document.createElement('button'); finBtn.className = 'btn btn-finish-workout';

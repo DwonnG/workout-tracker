@@ -3,7 +3,7 @@
   var PIN_HASH_KEY = 'wt:pinHash';
   var ACCOUNTS_KEY = 'wt:accounts';
   var USERNAME_KEY = 'wt:userName';
-  var INVITE_HASH = '4c39c3f3adb26db03b31e70a59fd141af7585e59b30e0c7054f07c317dbced1d';
+  WT._inviteHash = window.__testInviteHash || '4c39c3f3adb26db03b31e70a59fd141af7585e59b30e0c7054f07c317dbced1d';
   var PBKDF2_ITERATIONS = 100000;
 
   var pinOverlay = document.getElementById('pinOverlay');
@@ -123,7 +123,7 @@
     var code = (pinInviteInput.value || '').trim();
     if (!code) { pinInviteInput.focus(); return; }
     hashPin(code).then(function (hash) {
-      if (hash === INVITE_HASH) {
+      if (hash === WT._inviteHash) {
         pinErrorEl.textContent = '';
         pinMode = 'create'; updatePinUI(); renderNumPad();
       } else {
