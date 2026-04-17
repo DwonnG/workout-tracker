@@ -40,8 +40,34 @@
     if (data.months) {
       var keys = Object.keys(data.months);
       for (var i = 0; i < keys.length; i++) {
-        localStorage.setItem(WT.STORAGE_PREFIX + keys[i], JSON.stringify(data.months[keys[i]]));
+        var monthData = data.months[keys[i]];
+        if (monthData && monthData.days) {
+          var dayKeys = Object.keys(monthData.days);
+          for (var j = 0; j < dayKeys.length; j++) {
+            var day = monthData.days[dayKeys[j]];
+            if (day) {
+              if (day.foods) day.foods = WT.toArray(day.foods);
+              if (day.lifts) {
+                var lk = Object.keys(day.lifts);
+                for (var li = 0; li < lk.length; li++) {
+                  if (day.lifts[lk[li]] && day.lifts[lk[li]].sets) {
+                    day.lifts[lk[li]].sets = WT.toArray(day.lifts[lk[li]].sets);
+                  }
+                }
+              }
+            }
+          }
+        }
+        localStorage.setItem(WT.STORAGE_PREFIX + keys[i], JSON.stringify(monthData));
       }
+    }
+    if (data.profile && data.profile.trackedMacros && Array.isArray(data.profile.trackedMacros)) {
+      WT.savePrefs(data.profile.trackedMacros);
+      if (WT.renderGoalInputs) WT.renderGoalInputs();
+    }
+    if (data.customFoods) {
+      var cf = WT.toArray(data.customFoods);
+      localStorage.setItem('wt:customFoods', JSON.stringify(cf));
     }
   };
 
@@ -54,6 +80,7 @@
         try { data.months[mk] = JSON.parse(localStorage.getItem(k)); } catch (e) { /* skip corrupt entries */ }
       }
     }
+    try { var cf = JSON.parse(localStorage.getItem('wt:customFoods')); if (cf) data.customFoods = cf; } catch (e) { /* skip */ }
     WT.db.ref(WT.fbRoot).set(data);
   };
 

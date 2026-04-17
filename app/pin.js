@@ -217,12 +217,20 @@
             return;
           }
           var salt = profile.salt;
+          function applyProfilePrefs(prof) {
+            if (prof.trackedMacros && Array.isArray(prof.trackedMacros)) {
+              WT.savePrefs(prof.trackedMacros);
+            } else {
+              WT.savePrefs(WT.DEFAULT_TRACKED.slice());
+            }
+          }
           if (salt) {
             deriveKey(enteredPin, salt).then(function (derived) {
               if (derived === profile.pinHash) {
                 saveAccount(pathKey, profile.name || '');
                 localStorage.setItem(PIN_HASH_KEY, pathKey);
                 localStorage.setItem(USERNAME_KEY, profile.name || '');
+                applyProfilePrefs(profile);
                 WT.unlockApp(pathKey);
               } else {
                 pinErrorEl.textContent = 'PIN not recognized.';
@@ -234,6 +242,7 @@
             saveAccount(pathKey, profile.name || '');
             localStorage.setItem(PIN_HASH_KEY, pathKey);
             localStorage.setItem(USERNAME_KEY, profile.name || '');
+            applyProfilePrefs(profile);
             WT.unlockApp(pathKey);
           }
         }).catch(function () {
@@ -246,6 +255,7 @@
           }
           localStorage.setItem(PIN_HASH_KEY, pathKey);
           localStorage.setItem(USERNAME_KEY, acct.name || '');
+          WT.trackedMacros = WT.loadPrefs();
           WT.unlockApp(pathKey);
         });
       });
@@ -258,7 +268,8 @@
     var salt = generateSalt();
     hashPin(createFirstPin).then(function (pathKey) {
       return deriveKey(createFirstPin, salt).then(function (pinHash) {
-        var profileData = { name: createName, salt: salt, pinHash: pinHash };
+        var profileData = { name: createName, salt: salt, pinHash: pinHash, trackedMacros: WT.DEFAULT_TRACKED.slice() };
+        WT.savePrefs(WT.DEFAULT_TRACKED.slice());
         return WT.getFirebaseDb().ref('tracker/' + pathKey + '/profile').set(profileData).then(function () {
           saveAccount(pathKey, createName);
           localStorage.setItem(PIN_HASH_KEY, pathKey);

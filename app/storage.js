@@ -42,9 +42,10 @@
   WT.loadMonth = function (y, m) {
     try {
       var r = localStorage.getItem(WT.STORAGE_PREFIX + y + '-' + WT.pad(m + 1));
-      if (!r) return { goal: null, days: {} };
-      var o = JSON.parse(r); return { goal: o.goal != null ? o.goal : null, days: o.days || {} };
-    } catch (e) { return { goal: null, days: {} }; }
+      if (!r) return { goal: null, goals: {}, days: {} };
+      var o = JSON.parse(r);
+      return { goal: o.goal != null ? o.goal : null, goals: o.goals || {}, days: o.days || {} };
+    } catch (e) { return { goal: null, goals: {}, days: {} }; }
   };
 
   WT.saveMonth = function (y, m, d) {
@@ -53,21 +54,66 @@
     WT.fbSet('months/' + mk, d);
   };
 
+  function toArray(v) {
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === 'object') {
+      var keys = Object.keys(v), arr = [];
+      for (var i = 0; i < keys.length; i++) arr.push(v[keys[i]]);
+      return arr;
+    }
+    return [];
+  }
+
+  WT.toArray = toArray;
+
   WT.ensureRec = function (md, id) {
-    if (!md.days[id]) md.days[id] = { lift: false, run: false, p: '', foods: [], lifts: {} };
+    if (!md.days[id]) md.days[id] = { lift: false, run: false, p: '', foods: [], lifts: {}, totals: {} };
     var r = md.days[id];
     if (r.w !== undefined) { r.lift = !!r.w; delete r.w; }
-    if (!r.foods) r.foods = [];
+    r.foods = toArray(r.foods);
     if (!r.lifts) r.lifts = {};
+    if (!r.totals) r.totals = {};
+    var keys = Object.keys(r.lifts);
+    for (var i = 0; i < keys.length; i++) {
+      r.lifts[keys[i]] = WT.migrateLift(r.lifts[keys[i]]);
+      if (r.lifts[keys[i]] && r.lifts[keys[i]].sets) {
+        r.lifts[keys[i]].sets = toArray(r.lifts[keys[i]].sets);
+      }
+    }
     return r;
   };
 
-  WT.syncGoal = function () {
-    var gy = WT.viewMode === 'month' ? WT.view.y : WT.focus.y;
-    var gm = WT.viewMode === 'month' ? WT.view.m : WT.focus.m;
-    var d = WT.loadMonth(gy, gm);
-    if (d.goal != null && !isNaN(d.goal)) WT.el.goal.value = String(d.goal);
+  WT.stampStart = function (y, m, id) {
+    var md = WT.loadMonth(y, m); WT.ensureRec(md, id);
+    if (!md.days[id].startedAt) {
+      md.days[id].startedAt = new Date().toISOString();
+      WT.saveMonth(y, m, md);
+    }
   };
+
+  WT.stampFinish = function (y, m, id) {
+    var md = WT.loadMonth(y, m); WT.ensureRec(md, id);
+    md.days[id].finishedAt = new Date().toISOString();
+    WT.saveMonth(y, m, md);
+  };
+
+  WT.workoutDuration = function (rec) {
+    if (!rec || !rec.startedAt) return null;
+    var start = new Date(rec.startedAt).getTime();
+    var end = rec.finishedAt ? new Date(rec.finishedAt).getTime() : Date.now();
+    var mins = Math.round((end - start) / 60000);
+    return mins > 0 ? mins : null;
+  };
+
+  WT.formatDuration = function (mins) {
+    if (mins == null) return '';
+    if (mins < 60) return mins + 'min';
+    var h = Math.floor(mins / 60);
+    var m = mins % 60;
+    return h + 'h' + (m > 0 ? ' ' + m + 'm' : '');
+  };
+
+  WT.syncGoal = function () {};
 
   WT.migrateOldData = function () {
     var OLD_PREFIX = 'workoutProteinTracker:v1:';

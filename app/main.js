@@ -32,12 +32,9 @@
     WT.el = {
       cal: document.getElementById('calendar'),
       title: document.getElementById('viewTitle'),
-      goal: document.getElementById('proteinGoal'),
       printGoal: document.getElementById('printGoal'),
       navPrev: document.getElementById('navPrev'),
       navNext: document.getElementById('navNext'),
-      printBtn: document.getElementById('printBtn'),
-      clearBtn: document.getElementById('clearBtn'),
       statsRow: document.getElementById('statsRow'),
       syncDot: document.getElementById('syncDot')
     };
@@ -51,21 +48,57 @@
       } catch (e) { /* use default */ }
       return { y: today.getFullYear(), m: today.getMonth(), d: today.getDate() };
     })();
-    WT.viewMode = (function () { var v = localStorage.getItem(WT.VIEW_KEY); return v === 'day' || v === 'week' || v === 'month' ? v : 'day'; })();
+    WT.viewMode = (function () { var v = localStorage.getItem(WT.VIEW_KEY); return v === 'day' || v === 'week' || v === 'month' || v === 'history' ? v : 'day'; })();
+
+    WT.renderGoalInputs = function () {};
+
+    WT.currentGoalValue = function (key) {
+      var gy = WT.viewMode === 'month' ? WT.view.y : WT.focus.y;
+      var gm = WT.viewMode === 'month' ? WT.view.m : WT.focus.m;
+      var md = WT.loadMonth(gy, gm);
+      return WT.getGoal(md, key);
+    };
 
     WT.initFoodModal();
+    WT.initSettings();
+    WT.initNutrition();
+    WT.initTimer();
+    WT.initCharts();
+    WT.initTemplates();
+    WT.initGestures();
+    WT.initExercisePicker();
 
-    document.querySelectorAll('#viewSeg .seg-btn').forEach(function (btn) {
-      if (btn.dataset.view === WT.viewMode) btn.classList.add('active'); else btn.classList.remove('active');
-      btn.addEventListener('click', function () {
-        document.querySelectorAll('#viewSeg .seg-btn').forEach(function (b) { b.classList.remove('active'); });
-        btn.classList.add('active'); WT.viewMode = btn.dataset.view; localStorage.setItem(WT.VIEW_KEY, WT.viewMode); WT.render();
-      });
+    document.getElementById('settingsBtn').addEventListener('click', function () {
+      WT.openSettings();
     });
 
-    WT.el.goal.addEventListener('change', function () {
-      var gy = WT.viewMode === 'month' ? WT.view.y : WT.focus.y, gm = WT.viewMode === 'month' ? WT.view.m : WT.focus.m;
-      var d = WT.loadMonth(gy, gm); d.goal = parseInt(WT.el.goal.value, 10) || 0; WT.saveMonth(gy, gm, d); WT.render();
+    document.getElementById('templatesBtn').addEventListener('click', function () {
+      WT.closeSettings();
+      WT.openTemplateModal();
+    });
+
+    document.getElementById('exportJsonBtn').addEventListener('click', function () {
+      WT.closeSettings();
+      WT.exportJSON();
+    });
+
+    document.getElementById('exportCsvBtn').addEventListener('click', function () {
+      WT.closeSettings();
+      WT.exportCSV();
+    });
+
+    var navBtns = document.querySelectorAll('#bottomNav .bnav-item[data-view]');
+    WT.syncNav = function () {
+      navBtns.forEach(function (b) { b.classList.toggle('active', b.dataset.view === WT.viewMode); });
+    };
+    WT.syncNav();
+    navBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        WT.viewMode = btn.dataset.view;
+        localStorage.setItem(WT.VIEW_KEY, WT.viewMode);
+        WT.syncNav();
+        WT.render();
+      });
     });
 
     WT.el.navPrev.addEventListener('click', function () {
@@ -86,30 +119,54 @@
       WT.saveFocus(); WT.render();
     });
 
-    var menuWrap = document.getElementById('menuWrap');
-    document.getElementById('menuBtn').addEventListener('click', function (e) { e.stopPropagation(); menuWrap.classList.toggle('open'); });
-    document.addEventListener('click', function () { menuWrap.classList.remove('open'); });
-
-    WT.el.printBtn.addEventListener('click', function () { menuWrap.classList.remove('open'); window.print(); });
-    WT.el.clearBtn.addEventListener('click', function () {
-      menuWrap.classList.remove('open');
+    document.getElementById('printBtn').addEventListener('click', function () { WT.closeSettings(); window.print(); });
+    document.getElementById('clearBtn').addEventListener('click', function () {
+      WT.closeSettings();
       var label = WT.viewMode === 'month' ? WT.MONTH_LONG[WT.view.m] + ' ' + WT.view.y : 'this period';
       if (!confirm('Clear all entries for ' + label + '?')) return;
-      if (WT.viewMode === 'month') { WT.saveMonth(WT.view.y, WT.view.m, { goal: parseInt(WT.el.goal.value, 10) || 0, days: {} }); }
+      if (WT.viewMode === 'month') { var curMd = WT.loadMonth(WT.view.y, WT.view.m); WT.saveMonth(WT.view.y, WT.view.m, { goal: curMd.goal || 0, goals: curMd.goals || {}, days: {} }); }
       else { var mn = WT.monOf(WT.focus.y, WT.focus.m, WT.focus.d); for (var i = 0; i < 7; i++) { var fd = WT.addD(mn.y, mn.m, mn.d, i); var md = WT.loadMonth(fd.y, fd.m); delete md.days[WT.iso(fd.y, fd.m, fd.d)]; WT.saveMonth(fd.y, fd.m, md); } }
       WT.render();
     });
 
-    document.getElementById('lockBtn').addEventListener('click', function () { menuWrap.classList.remove('open'); WT.lockApp(); });
+    document.getElementById('lockBtn').addEventListener('click', function () { WT.lockApp(); });
+
+    var editorModal = document.getElementById('editorModal');
+    var editorTabs = document.querySelectorAll('#editorTabs .editor-tab');
+    var tabPlan = document.getElementById('editorTabPlan');
+    var tabNutrition = document.getElementById('editorTabNutrition');
+
+    function switchEditorTab(tab) {
+      editorTabs.forEach(function (t) { t.classList.toggle('active', t.dataset.tab === tab); });
+      tabPlan.style.display = tab === 'plan' ? '' : 'none';
+      tabNutrition.style.display = tab === 'nutrition' ? '' : 'none';
+      if (tab === 'plan') WT.buildPlanFields();
+      if (tab === 'nutrition') WT.openNutritionTab();
+    }
+
+    editorTabs.forEach(function (t) {
+      t.addEventListener('click', function () { switchEditorTab(t.dataset.tab); });
+    });
+
+    document.getElementById('editPlanBtn').addEventListener('click', function () {
+      switchEditorTab('plan');
+      editorModal.classList.add('open');
+    });
+    document.getElementById('editorModalClose').addEventListener('click', function () { editorModal.classList.remove('open'); });
+    editorModal.addEventListener('click', function (e) { if (e.target === editorModal) editorModal.classList.remove('open'); });
 
     var spb = document.getElementById('savePlanBtn'), rpb = document.getElementById('resetPlanBtn');
-    if (spb) spb.addEventListener('click', function () { WT.savePlan(WT.readPlanForm()); WT.render(); WT.showToast('Plan saved', 'var(--green)'); });
+    if (spb) spb.addEventListener('click', function () { WT.savePlan(WT.readPlanForm()); editorModal.classList.remove('open'); WT.render(); WT.showToast('Plan saved', 'var(--green)'); });
     if (rpb) rpb.addEventListener('click', function () { if (!confirm('Reset all seven days to the built-in default plan?')) return; localStorage.removeItem(WT.PLAN_KEY); WT.fbSet('plan', null); WT.buildPlanFields(); WT.render(); });
 
     WT.migrateOldData();
-    WT.buildPlanFields();
     WT.render();
     WT.pullFromFirebase();
+    WT.startIdleTimer();
+
+    if (WT.shouldShowTour()) {
+      setTimeout(function () { WT.startTour(); }, 600);
+    }
 
     var fbRef = WT.db.ref(WT.fbRoot);
     fbRef.on('value', function (snap) {
@@ -123,6 +180,7 @@
 
   var storedHash = localStorage.getItem('wt:pinHash');
   if (storedHash) {
+    WT.trackedMacros = WT.loadPrefs();
     WT.unlockApp(storedHash);
   } else {
     WT.showPinScreen();
