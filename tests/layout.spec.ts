@@ -14,13 +14,6 @@ test.describe('Page load and layout', () => {
     await expect(page.locator('#syncDot')).toBeVisible();
   });
 
-  test('displays the protein goal input', async ({ page }) => {
-    const goalInput = page.locator('#proteinGoal');
-    await expect(goalInput).toBeVisible();
-    const val = await goalInput.inputValue();
-    expect(Number(val)).toBeGreaterThan(0);
-  });
-
   test('renders the calendar container', async ({ page }) => {
     await expect(page.locator('#calendar')).toBeVisible();
   });
@@ -35,21 +28,11 @@ test.describe('Page load and layout', () => {
   });
 });
 
-test.describe('Number input spinners hidden', () => {
-  test('protein goal input has no visible spinners', async ({ page }) => {
-    const goalInput = page.locator('#proteinGoal');
-    const appearance = await goalInput.evaluate(
-      (el) => window.getComputedStyle(el).getPropertyValue('appearance')
-    );
-    expect(appearance).toBe('textfield');
-  });
-});
-
 test.describe('Accessibility basics', () => {
   test('navigation buttons have aria-labels', async ({ page }) => {
     await expect(page.locator('#navPrev')).toHaveAttribute('aria-label');
     await expect(page.locator('#navNext')).toHaveAttribute('aria-label');
-    await expect(page.locator('#menuBtn')).toHaveAttribute('aria-label');
+    await expect(page.locator('#editPlanBtn')).toHaveAttribute('aria-label');
   });
 
   test('page has a heading', async ({ page }) => {

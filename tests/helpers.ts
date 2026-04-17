@@ -35,8 +35,6 @@ export async function createAccount(page: Page, pin = CREATE_PIN, name = CREATE_
 }
 
 export async function logoutFromApp(page: Page) {
-  await page.locator('#menuBtn').click({ force: true });
-  await expect(page.locator('#menuWrap')).toHaveClass(/open/, { timeout: 3000 });
   await page.locator('#lockBtn').click({ force: true });
   await expect(page.locator('#pinOverlay')).toBeVisible();
 }
@@ -52,6 +50,8 @@ export async function freshLogin(page: Page) {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await expect(page.locator('#pinOverlay')).toBeVisible();
+  // Suppress walkthrough tour for non-tour tests
+  await page.evaluate(() => localStorage.setItem('wt:tourDone', '1'));
   await loginWithPin(page);
   await expect(page.locator('#calendar')).toBeVisible({ timeout: 5000 });
 }

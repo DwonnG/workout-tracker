@@ -6,15 +6,40 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('Daily view — workout tracking', () => {
-  test('shows lift and run checkboxes', async ({ page }) => {
-    await expect(page.locator('.day-tracking .tag-lift')).toBeVisible();
-    await expect(page.locator('.day-tracking .tag-run')).toBeVisible();
+  test('does not show a LIFT checkbox (auto-detected)', async ({ page }) => {
+    await expect(page.locator('.day-tracking .tag-lift')).toHaveCount(0);
   });
 
-  test('can check lift and run boxes', async ({ page }) => {
-    const liftBox = page.locator('.day-tracking .check-row').first().locator('input[type="checkbox"]');
-    await liftBox.check();
-    await expect(liftBox).toBeChecked();
+  test('shows RUN checkbox only on days with a run in the plan', async ({ page }) => {
+    const hasRun = await page.locator('.day-plan li.li-run').count();
+    if (hasRun > 0) {
+      await expect(page.locator('.day-tracking .tag-run')).toBeVisible();
+    } else {
+      await expect(page.locator('.day-tracking .tag-run')).toHaveCount(0);
+    }
+  });
+
+  test('auto-detects lift completion when a set is marked done', async ({ page }) => {
+    const setTables = page.locator('.set-table');
+    const count = await setTables.count();
+    if (count === 0) return;
+
+    const doneBtn = setTables.first().locator('.set-done-btn').first();
+    await doneBtn.click();
+
+    await expect(async () => {
+      const liftDetected = await page.evaluate(() => {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('wt:v2:')) {
+            const v = localStorage.getItem(k) || '';
+            if (v.includes('"lift":true')) return true;
+          }
+        }
+        return false;
+      });
+      expect(liftDetected).toBe(true);
+    }).toPass({ timeout: 5000 });
   });
 
   test('shows the workout plan for the day', async ({ page }) => {
@@ -29,32 +54,33 @@ test.describe('Daily view — workout tracking', () => {
 test.describe('Weight and reps logging', () => {
   test.describe.configure({ mode: 'serial' });
 
-  test('shows weight and reps inputs for Lift exercises', async ({ page }) => {
-    const liftLogs = page.locator('.lift-log');
+  test('shows set table with weight and reps inputs for Lift exercises', async ({ page }) => {
+    const setTables = page.locator('.set-table');
     const planItems = page.locator('.day-plan li.li-lift');
     const liftCount = await planItems.count();
     if (liftCount > 0) {
-      await expect(liftLogs.first()).toBeVisible();
-      const weightInput = liftLogs.first().locator('input[type="number"]');
-      const repsInput = liftLogs.first().locator('input.reps-input');
+      await expect(setTables.first()).toBeVisible();
+      const weightInput = setTables.first().locator('input.set-w-col').first();
+      const repsInput = setTables.first().locator('input.set-r-col').first();
       await expect(weightInput).toBeVisible();
       await expect(repsInput).toBeVisible();
     }
   });
 
-  test('saves weight and reps on blur', async ({ page }) => {
+  test('saves weight and reps on change', async ({ page }) => {
     await page.locator('#navPrev').click();
     await expect(page.locator('.day-head')).toBeVisible();
 
-    const liftLogs = page.locator('.lift-log');
-    const count = await liftLogs.count();
+    const setTables = page.locator('.set-table');
+    const count = await setTables.count();
     if (count === 0) return;
 
-    const weightInput = liftLogs.first().locator('input[type="number"]');
-    const repsInput = liftLogs.first().locator('input.reps-input');
+    const weightInput = setTables.first().locator('input.set-w-col').first();
+    const repsInput = setTables.first().locator('input.set-r-col').first();
     await weightInput.fill('185');
-    await repsInput.fill('8,8,7,6');
-    await repsInput.press('Tab');
+    await weightInput.dispatchEvent('change');
+    await repsInput.fill('8');
+    await repsInput.dispatchEvent('change');
 
     await expect(async () => {
       const stored = await page.evaluate(() => {
@@ -70,15 +96,15 @@ test.describe('Weight and reps logging', () => {
       expect(stored).toBe(true);
     }).toPass({ timeout: 5000 });
 
-    await page.locator('.seg-btn[data-view="week"]').click();
+    await page.locator('.bnav-item[data-view="week"]').click();
     await expect(page.locator('.week-grid')).toBeVisible();
-    await page.locator('.seg-btn[data-view="day"]').click();
-    await expect(page.locator('.lift-log').first()).toBeVisible();
+    await page.locator('.bnav-item[data-view="day"]').click();
+    await expect(page.locator('.set-table').first()).toBeVisible();
 
-    const newWeightInput = page.locator('.lift-log').first().locator('input[type="number"]');
-    const newRepsInput = page.locator('.lift-log').first().locator('input.reps-input');
+    const newWeightInput = page.locator('.set-table').first().locator('input.set-w-col').first();
+    const newRepsInput = page.locator('.set-table').first().locator('input.set-r-col').first();
     await expect(newWeightInput).toHaveValue('185', { timeout: 10000 });
-    await expect(newRepsInput).toHaveValue('8,8,7,6', { timeout: 10000 });
+    await expect(newRepsInput).toHaveValue('8', { timeout: 10000 });
   });
 
   test('weight and reps persist across page reload', async ({ page }) => {
@@ -86,15 +112,16 @@ test.describe('Weight and reps logging', () => {
     await page.locator('#navPrev').click();
     await expect(page.locator('.day-head')).toBeVisible();
 
-    const liftLogs = page.locator('.lift-log');
-    const count = await liftLogs.count();
+    const setTables = page.locator('.set-table');
+    const count = await setTables.count();
     if (count === 0) return;
 
-    const weightInput = liftLogs.first().locator('input[type="number"]');
-    const repsInput = liftLogs.first().locator('input.reps-input');
+    const weightInput = setTables.first().locator('input.set-w-col').first();
+    const repsInput = setTables.first().locator('input.set-r-col').first();
     await weightInput.fill('225');
-    await repsInput.fill('5,5,4');
-    await repsInput.press('Tab');
+    await weightInput.dispatchEvent('change');
+    await repsInput.fill('5');
+    await repsInput.dispatchEvent('change');
 
     await expect(async () => {
       const stored = await page.evaluate(() => {
@@ -112,19 +139,19 @@ test.describe('Weight and reps logging', () => {
 
     await page.reload();
     await expect(page.locator('#appWrap')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.lift-log').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.set-table').first()).toBeVisible({ timeout: 5000 });
 
-    const reloadedWeight = page.locator('.lift-log').first().locator('input[type="number"]');
-    const reloadedReps = page.locator('.lift-log').first().locator('input.reps-input');
+    const reloadedWeight = page.locator('.set-table').first().locator('input.set-w-col').first();
+    const reloadedReps = page.locator('.set-table').first().locator('input.set-r-col').first();
     await expect(reloadedWeight).toHaveValue('225', { timeout: 10000 });
-    await expect(reloadedReps).toHaveValue('5,5,4', { timeout: 10000 });
+    await expect(reloadedReps).toHaveValue('5', { timeout: 10000 });
   });
 
-  test('does not show weight inputs for non-lift exercises', async ({ page }) => {
+  test('does not show set table for non-lift exercises', async ({ page }) => {
     const runItems = page.locator('.day-plan li.li-run');
     const runCount = await runItems.count();
     if (runCount > 0) {
-      const nextSibling = runItems.first().locator('+ .lift-log');
+      const nextSibling = runItems.first().locator('+ .set-table');
       await expect(nextSibling).toHaveCount(0);
     }
   });

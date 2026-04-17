@@ -7,18 +7,18 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('View switching', () => {
   test('defaults to Daily view', async ({ page }) => {
-    await expect(page.locator('.seg-btn.active')).toHaveText('Daily');
+    await expect(page.locator('.bnav-item.active')).toHaveText('Day');
   });
 
   test('switches to Weekly view', async ({ page }) => {
-    await page.locator('.seg-btn[data-view="week"]').click();
-    await expect(page.locator('.seg-btn[data-view="week"]')).toHaveClass(/active/);
+    await page.locator('.bnav-item[data-view="week"]').click();
+    await expect(page.locator('.bnav-item[data-view="week"]')).toHaveClass(/active/);
     await expect(page.locator('#viewTitle')).not.toBeEmpty();
   });
 
   test('switches to Monthly view', async ({ page }) => {
-    await page.locator('.seg-btn[data-view="month"]').click();
-    await expect(page.locator('.seg-btn[data-view="month"]')).toHaveClass(/active/);
+    await page.locator('.bnav-item[data-view="month"]').click();
+    await expect(page.locator('.bnav-item[data-view="month"]')).toHaveClass(/active/);
   });
 
   test('navigates forward and backward', async ({ page }) => {
